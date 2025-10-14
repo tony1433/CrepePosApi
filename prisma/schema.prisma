@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model combo {
+  id           Bytes          @id @db.Binary(16)
+  created_at   DateTime       @db.DateTime(0)
+  updted_at    DateTime       @db.DateTime(0)
+  name         String         @db.VarChar(255)
+  description  String         @db.VarChar(255)
+  price        Float
+  is_active    Boolean
+  combo_day    combo_day[]
+  combo_detail combo_detail[]
+  sale_detail  sale_detail[]
+}
+
+model combo_detail {
+  id              Bytes        @id @db.Binary(16)
+  created_at      DateTime     @db.DateTime(0)
+  updated_at      DateTime     @db.DateTime(0)
+  amount          Float
+  combo_id        Bytes        @db.Binary(16)
+  type_product_id Bytes        @db.Binary(16)
+  combo           combo        @relation(fields: [combo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_combo_detail_combo_id_combo")
+  type_product    type_product @relation(fields: [type_product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_combo_detail_type_product_id_type_product")
+
+  @@index([combo_id], map: "fk_combo_detail_combo_id_combo")
+  @@index([type_product_id], map: "fk_combo_detail_type_product_id_type_product")
+}
+
+model ingredient {
+  id                 Bytes                @id @db.Binary(16)
+  current_stock      Float
+  updated_at         DateTime?            @db.DateTime(0)
+  unit_measurement   String               @db.VarChar(20)
+  created_at         DateTime             @db.DateTime(0)
+  min_stock          Float
+  cost_unit          Float
+  name               String               @db.VarChar(255)
+  product_ingredient product_ingredient[]
+}
+
+model product {
+  id                 Bytes                @id @db.Binary(16)
+  is_active          Boolean
+  created_at         DateTime             @db.DateTime(0)
+  updated_at         DateTime             @db.DateTime(0)
+  name               String               @db.VarChar(255)
+  price              Float
+  image              String               @db.VarChar(255)
+  type_id            Bytes                @db.Binary(16)
+  type_product       type_product         @relation(fields: [type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_type_product_id_Product")
+  product_ingredient product_ingredient[]
+  sale_detail        sale_detail[]
+
+  @@index([type_id], map: "fk_type_product_id_Product")
+}
+
+model sale {
+  id             Bytes               @id @db.Binary(16)
+  created_at     DateTime            @db.DateTime(0)
+  updated_at     DateTime            @db.DateTime(0)
+  total          Float
+  payment_method sale_payment_method @default(cash)
+  user_id        Bytes               @db.Binary(16)
+  user           user                @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sale_user_id_user")
+  sale_detail    sale_detail[]
+
+  @@index([user_id], map: "fk_sale_user_id_user")
+}
+
+model sale_detail {
+  id         Bytes    @id @db.Binary(16)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  amount     Int
+  subtotal   Float
+  sale_id    Bytes    @db.Binary(16)
+  product_id Bytes?   @db.Binary(16)
+  combo_id   Bytes?   @db.Binary(16)
+  combo      combo?   @relation(fields: [combo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sale_detail_combo_id_combo")
+  product    product? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sale_detail_product_id_Product")
+  sale       sale     @relation(fields: [sale_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sale_id_sale_detail")
+
+  @@index([combo_id], map: "fk_sale_detail_combo_id_combo")
+  @@index([product_id], map: "fk_sale_detail_product_id_Product")
+  @@index([sale_id], map: "fk_sale_id_sale_detail")
+}
+
+model type_product {
+  id           Bytes          @id @db.Binary(16)
+  created_at   DateTime       @db.DateTime(0)
+  updated_at   DateTime       @db.DateTime(0)
+  name         String         @db.VarChar(255)
+  description  String         @db.VarChar(255)
+  combo_detail combo_detail[]
+  product      product[]
+}
+
+model user {
+  id         Bytes     @id @db.Binary(16)
+  is_active  Boolean
+  created_at DateTime  @db.DateTime(0)
+  updated_at DateTime  @db.DateTime(0)
+  name       String    @db.VarChar(50)
+  email      String    @db.VarChar(255)
+  password   String    @db.VarChar(1024)
+  role_id    Bytes     @db.Binary(16)
+  sale       sale[]
+  user_role  user_role @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_role_id_user")
+
+  @@index([role_id], map: "fk_user_role_id_user")
+}
+
+model user_role {
+  id         Bytes    @id @db.Binary(16)
+  is_active  Boolean
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  name       String   @db.VarChar(50)
+  code       String   @db.VarChar(50)
+  user       user[]
+}
+
+model combo_day {
+  id       Bytes         @id @db.Binary(16)
+  combo_id Bytes         @db.Binary(16)
+  day      combo_day_day @default(Lunes)
+  combo    combo         @relation(fields: [combo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_combo_id_combo_day")
+
+  @@index([combo_id], map: "fk_combo_id_combo_day")
+}
+
+model product_ingredient {
+  id            Bytes      @id @db.Binary(16)
+  is_base       Boolean
+  created_at    DateTime   @db.DateTime(0)
+  updated_at    DateTime   @db.DateTime(0)
+  amount        Float
+  product_id    Bytes      @db.Binary(16)
+  ingredient_id Bytes      @db.Binary(16)
+  product       product    @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_Product_id_product_ingredient")
+  ingredient    ingredient @relation(fields: [ingredient_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ingredients_id_product_ingredient")
+
+  @@index([product_id], map: "fk_Product_id_product_ingredient")
+  @@index([ingredient_id], map: "fk_ingredients_id_product_ingredient")
+}
+
+enum sale_payment_method {
+  cash
+  card
+}
+
+enum combo_day_day {
+  Lunes
+  Martes
+  Miercoles
+  Jueves
+  Viernes
+  Sabado
+  Domingo
+}
