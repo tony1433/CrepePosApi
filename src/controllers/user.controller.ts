@@ -110,6 +110,65 @@ export const UserController = {
             return res.status(500).json({ message: "Error de servidor" + error });
         }
     },
+    async getAllUser(req: any, res: any) {
+        try {
+            const user = await prisma.user.findMany({
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                is_active: true,
+                user_role: {
+                select: {
+                    name:true,
+                    code: true,
+                },
+                },
+            },
+            });
+
+            const formattedUsers = user.map((u) => ({
+                ...u,
+                id: bufferToUuid(Buffer.from(u.id)),
+            }));
+
+            res.status(200).json(formattedUsers);
+        } catch (error) {
+            return res.status(500).json({ message: "Error de servidor" + error });
+        }
+    },
+    async getUserCashier(req: any, res: any) {
+        try {
+            const user = await prisma.user.findMany({
+            where: {
+                user_role: {
+                    code: 'cashier'
+                }
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                is_active: true,
+                user_role: {
+                select: {
+                    name:true,
+                    code: true,
+                },
+                },
+            },
+            });
+
+            const formattedUsers = user.map((u) => ({
+                ...u,
+                id: bufferToUuid(Buffer.from(u.id)),
+            }));
+
+            res.status(200).json(formattedUsers);
+        } catch (error) {
+            return res.status(500).json({ message: "Error de servidor" + error });
+        }
+    },
     async updateUser(req: any, res: any) {
         const {id, name, email, password, role_id, is_active } = req.body;
 
@@ -173,7 +232,7 @@ export const UserController = {
         }
     },
     async deleteUser(req: any, res: any) {
-        const { id } = req.params;
+        const { id } = req.body;
 
         try {
             const user = await prisma.user.findFirst({

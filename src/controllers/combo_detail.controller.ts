@@ -82,4 +82,39 @@ export const ComboDetailController = {
             return res.status(500).json({ message: "Error de servidor" + error });
         }
     },
+    async getAllComboDetail(req: any, res: any) {
+        const { id } = req.params;
+        try {
+            const comboDetails = await prisma.combo_detail.findMany({
+                where: {
+                    combo_id: uuidToBuffer(id),
+                },
+                select: {
+                    id: true,
+                    combo_id: true,
+                    amount: true,
+                    type_product_id: true,
+                    updated_at: true,
+                    created_at: true,
+                    type_product: {
+                        select: {
+                            name: true,
+                            description: true,
+                        }
+                    }
+                },
+            });
+
+            const formattedComboDetails = comboDetails.map((detail) => ({
+                ...detail,
+                id: bufferToUuid(Buffer.from(detail.id)),
+                combo_id: bufferToUuid(Buffer.from(detail.combo_id)),
+                type_product_id: bufferToUuid(Buffer.from(detail.type_product_id)),
+            }));
+
+            res.status(200).json(formattedComboDetails);
+        } catch (error) {
+            return res.status(500).json({ message: "Error de servidor" + error });
+        }
+    },
 };

@@ -15,7 +15,7 @@ model combo {
   description  String         @db.VarChar(255)
   price        Float
   is_active    Boolean
-  combo_day    combo_day[]
+  combo_day    String?        @db.VarChar(255)
   combo_detail combo_detail[]
   sale_detail  sale_detail[]
 }
@@ -84,6 +84,7 @@ model sale_detail {
   sale_id    Bytes    @db.Binary(16)
   product_id Bytes?   @db.Binary(16)
   combo_id   Bytes?   @db.Binary(16)
+  note       String   @db.VarChar(255)
   combo      combo?   @relation(fields: [combo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sale_detail_combo_id_combo")
   product    product? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sale_detail_product_id_Product")
   sale       sale     @relation(fields: [sale_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sale_id_sale_detail")
@@ -128,15 +129,6 @@ model user_role {
   user       user[]
 }
 
-model combo_day {
-  id       Bytes         @id @db.Binary(16)
-  combo_id Bytes         @db.Binary(16)
-  day      combo_day_day @default(Lunes)
-  combo    combo         @relation(fields: [combo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_combo_id_combo_day")
-
-  @@index([combo_id], map: "fk_combo_id_combo_day")
-}
-
 model product_ingredient {
   id            Bytes      @id @db.Binary(16)
   is_base       Boolean
@@ -155,14 +147,4 @@ model product_ingredient {
 enum sale_payment_method {
   cash
   card
-}
-
-enum combo_day_day {
-  Lunes
-  Martes
-  Miercoles
-  Jueves
-  Viernes
-  Sabado
-  Domingo
 }

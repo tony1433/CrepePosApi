@@ -82,8 +82,7 @@ export const IngredientController = {
         }
     },
     async updateIngredient(req: any, res: any) {
-        const { id } = req.params;
-        const { name, current_stock, min_stock, unit_measurement, cost_unit } = req.body;
+        const {id, name, current_stock, min_stock, unit_measurement, cost_unit } = req.body;
         
         try {
             const uuidBuffer = uuidToBuffer(id);
@@ -132,7 +131,7 @@ export const IngredientController = {
         }
     },
     async deleteIngredient(req: any, res: any) {
-        const { id } = req.params;
+        const { id } = req.body;
         
         try {
             const uuidBuffer = uuidToBuffer(id);
@@ -147,11 +146,18 @@ export const IngredientController = {
                 return res.status(404).json({ message: "Ingrediente no encontrado" });
             }
 
-            await prisma.ingredient.delete({
-                where: {
-                    id: uuidBuffer,
-                },
-            });
+            await prisma.$transaction([
+                prisma.product_ingredient.deleteMany({
+                    where: {
+                        ingredient_id: uuidBuffer,
+                    },
+                }),
+                prisma.ingredient.delete({
+                    where: {
+                        id: uuidBuffer,
+                    },
+                }),
+            ]);
 
             res.status(200).json({ message: "Ingrediente eliminado correctamente" });
         } catch (error) {

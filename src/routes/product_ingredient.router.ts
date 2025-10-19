@@ -6,5 +6,7 @@ const ProductIngredientRoute = Router();
 
 ProductIngredientRoute.post("/product/ingredient/create", verifyToken, ProductIngredientController.createProductIngredient);
 ProductIngredientRoute.get("/product/ingredient/all", verifyToken, ProductIngredientController.getAllProductIngredients);
+ProductIngredientRoute.get("/product/ingredient/:id", verifyToken, ProductIngredientController.getProductIngredients);
+ProductIngredientRoute.delete("/product/ingredient/delete", verifyToken, ProductIngredientController.deleteProductIngredient);
 
 export default ProductIngredientRoute;

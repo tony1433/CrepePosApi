@@ -75,8 +75,14 @@ export const ProductController = {
                     price: true,
                     image: true,
                     type_id: true,
+                    is_active: true,
                     created_at: true,
                     updated_at: true,
+                    type_product: {
+                        select: {
+                            name: true,
+                        },
+                    },
                 },
             });
 
@@ -92,8 +98,7 @@ export const ProductController = {
         }
     },
     async updateProduct(req: any, res: any) {
-        const { id } = req.params;
-        const { name, price, image, type_id, is_active } = req.body;
+        const { id, name, price, image, type_id, is_active } = req.body;
         
         try {
             // Verificar si el producto existe
@@ -156,7 +161,7 @@ export const ProductController = {
         }
     },
     async deleteProduct(req: any, res: any) {
-        const { id } = req.params;
+        const { id } = req.body;
         
         try {
             // Verificar si el producto existe
@@ -170,14 +175,21 @@ export const ProductController = {
                 return res.status(404).json({ message: "Producto no encontrado" });
             }
 
-            // Eliminar el producto
-            await prisma.product.delete({
-                where: {
-                    id: uuidToBuffer(id)
-                }
-            });
+            // Eliminar los products_ingredient asociados y luego el producto en una transacción
+            await prisma.$transaction([
+                prisma.product_ingredient.deleteMany({
+                    where: {
+                        product_id: uuidToBuffer(id)
+                    }
+                }),
+                prisma.product.delete({
+                    where: {
+                        id: uuidToBuffer(id)
+                    }
+                })
+            ]);
 
-            res.status(200).json({ message: "Producto eliminado exitosamente" });
+            res.status(200).json({ message: "Producto y sus ingredientes asociados eliminados exitosamente" });
         } catch (error) {
             return res.status(500).json({ message: "Error de servidor: " + error });
         }

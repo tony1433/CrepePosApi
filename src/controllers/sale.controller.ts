@@ -51,6 +51,11 @@ export const SaleController = {
                     total: true,
                     payment_method: true,
                     user_id: true,
+                    user:{
+                        select:{
+                            name:true,
+                        }
+                    }
                 },
             });
             
@@ -108,19 +113,102 @@ export const SaleController = {
         const { id } = req.body;
         
         try {
-            const deletedSale = await prisma.sale.delete({
-                where: {
-                    id: uuidToBuffer(id)
-                }
+            // Usar una transacción para eliminar tanto la venta como sus detalles
+            const deletedSale = await prisma.$transaction(async (tx) => {
+                // Primero eliminamos los detalles de venta
+                await tx.sale_detail.deleteMany({
+                    where: {
+                        sale_id: uuidToBuffer(id)
+                    }
+                });
+
+                // Luego eliminamos la venta
+                const deletedSale = await tx.sale.delete({
+                    where: {
+                        id: uuidToBuffer(id)
+                    }
+                });
+
+                return deletedSale;
             });
 
             if (!deletedSale) {
                 return res.status(404).json({ message: "Venta no encontrada" });
             }
 
-            res.status(200).json({ message: "Venta eliminada correctamente" });
+            res.status(200).json({ message: "Venta y sus detalles eliminados correctamente" });
         } catch (error) {
             return res.status(500).json({ message: "Error de servidor: " + error });
         }
-    }
+    },
+    async getSalesByDateAndUser(req: any, res: any) {
+        const { date, user_id } = req.query;
+        
+        try {
+            // Validate date format
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                return res.status(400).json({ 
+                    message: "Formato de fecha inválido. Use YYYY-MM-DD (ejemplo: 2023-10-18)" 
+                });
+            }
+
+            // Crear fechas en la zona horaria de México
+            const startDate = new Date(`${date}T00:00:00-06:00`);
+            const endDate = new Date(`${date}T23:59:59.999-06:00`);
+
+            console.log('Buscando ventas entre:', startDate.toISOString(), 'y', endDate.toISOString());
+
+            const sales = await prisma.sale.findMany({
+                where: {
+                    created_at: {
+                        gte: startDate,
+                        lte: endDate
+                    },
+                    user_id: uuidToBuffer(user_id)
+                },
+                orderBy: {
+                    created_at: 'asc'
+                },
+                select: {
+                    id: true,
+                    created_at: true,
+                    updated_at: true,
+                    total: true,
+                    payment_method: true,
+                    user_id: true,
+                    user: {
+                        select: {
+                            name: true
+                        }
+                    }
+                }
+            });
+
+            // Calculate totals by payment method
+            const totals = sales.reduce((acc: any, sale) => {
+                if (!acc[sale.payment_method]) {
+                    acc[sale.payment_method] = 0;
+                }
+                acc[sale.payment_method] += Number(sale.total);
+                return acc;
+            }, {});
+
+            const formattedSales = sales.map((sale) => ({
+                ...sale,
+                id: bufferToUuid(Buffer.from(sale.id)),
+                user_id: bufferToUuid(Buffer.from(sale.user_id)),
+            }));
+
+            res.status(200).json({
+                sales: formattedSales,
+                summary: {
+                    totalSales: sales.length,
+                    paymentMethodTotals: totals,
+                    grandTotal: Object.values(totals).reduce((a: any, b: any) => a + b, 0)
+                }
+            });
+        } catch (error) {
+            return res.status(500).json({ message: "Error de servidor: " + error });
+        }
+    },
 };

@@ -4,7 +4,7 @@ import { bufferToUuid, uuidToBuffer } from "../utils/common";
 
 export const ComboController = {
     async createCombo(req: any, res: any) {
-        const { name, description, price } = req.body;
+        const { name, description, price, combo_day } = req.body;
         try {
             const existingCombo = await prisma.combo.findFirst({
                 where: {
@@ -29,6 +29,7 @@ export const ComboController = {
                     description: description,
                     price: price,
                     is_active: true,
+                    combo_day: combo_day,
                 },
                 select: {
                     id: true,
@@ -63,6 +64,7 @@ export const ComboController = {
                     description: true,
                     price: true,
                     is_active: true,
+                    combo_day: true,
                 },
             });
 

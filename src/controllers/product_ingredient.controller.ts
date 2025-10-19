@@ -57,6 +57,7 @@ export const ProductIngredientController = {
         try {
             const productIngredients = await prisma.product_ingredient.findMany({
                 select: {
+                    id: true,
                     updated_at: true,
                     is_base: true,
                     amount: true,
@@ -67,6 +68,42 @@ export const ProductIngredientController = {
 
             const formattedProductIngredients = productIngredients.map((pi) => ({
                 ...pi,
+                id: bufferToUuid(Buffer.from(pi.id)),
+                product_id: bufferToUuid(Buffer.from(pi.product_id)),
+                ingredient_id: bufferToUuid(Buffer.from(pi.ingredient_id)),
+            }));
+
+            res.status(200).json(formattedProductIngredients);
+        } catch (error) {
+            return res.status(500).json({ message: "Error de servidor" + error });
+        }
+    },
+    async getProductIngredients(req: any, res: any) {
+        const { id } = req.params;
+        try {
+            const productIngredients = await prisma.product_ingredient.findMany({
+                where: {
+                    product_id: uuidToBuffer(id),
+                },
+                select: {
+                    id: true,
+                    updated_at: true,
+                    is_base: true,
+                    amount: true,
+                    product_id: true,
+                    ingredient_id: true,
+                    ingredient: {
+                        select: {
+                            name: true,
+                            unit_measurement: true,
+                        },
+                    },
+                },
+            });
+
+            const formattedProductIngredients = productIngredients.map((pi) => ({
+                ...pi,
+                id: bufferToUuid(Buffer.from(pi.id)),
                 product_id: bufferToUuid(Buffer.from(pi.product_id)),
                 ingredient_id: bufferToUuid(Buffer.from(pi.ingredient_id)),
             }));
@@ -120,12 +157,11 @@ export const ProductIngredientController = {
         }
     },
     async deleteProductIngredient(req: any, res: any) {
-        const { id, product_id, ingredient_id } = req.body;
+        const { id } = req.body;
         try {
             const existingProductIngredient = await prisma.product_ingredient.findFirst({
                 where: {
-                    product_id: uuidToBuffer(product_id),
-                    ingredient_id: uuidToBuffer(ingredient_id),
+                    id: uuidToBuffer(id),
                 },
             });
 
