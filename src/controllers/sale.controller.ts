@@ -55,6 +55,31 @@ export const SaleController = {
                         select:{
                             name:true,
                         }
+                    },
+                    sale_detail:{
+                        select:{
+                            id: true,
+                            created_at: true,
+                            updated_at: true,
+                            amount: true,
+                            subtotal: true,
+                            sale_id: true,
+                            product_id: true,
+                            combo_id: true,
+                            note: true,
+                            product: {
+                                select: {
+                                    name: true,
+                                    price: true,
+                                }
+                            },
+                            combo: {
+                                select: {
+                                    name: true,
+                                    price: true,
+                                }
+                            }
+                        }
                     }
                 },
             });
@@ -63,6 +88,13 @@ export const SaleController = {
                 ...sale,
                 id: bufferToUuid(Buffer.from(sale.id)),
                 user_id: bufferToUuid(Buffer.from(sale.user_id)),
+                sale_detail: sale.sale_detail.map((detail: any) => ({
+                    ...detail,
+                    id: bufferToUuid(Buffer.from(detail.id)),
+                    sale_id: bufferToUuid(Buffer.from(detail.sale_id)),
+                    product_id: detail.product_id ? bufferToUuid(Buffer.from(detail.product_id)) : null,
+                    combo_id: detail.combo_id ? bufferToUuid(Buffer.from(detail.combo_id)) : null,
+                }))
             }));
 
             res.status(200).json(formattedSales);

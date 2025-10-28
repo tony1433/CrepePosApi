@@ -1,10 +1,11 @@
 import prisma from "../lib/prisma";
 import { v4 as uuidv4 } from "uuid";
 import { bufferToUuid, uuidToBuffer } from "../utils/common";
+import { BranchController } from './branch.controller';
 
 export const ProductController = {
     async createProduct(req: any, res: any) {
-        const { name, price, image, type_id } = req.body;
+        const { name, price, image, type_id, branch_id } = req.body;
         try {
             const product = await prisma.product.findFirst({
                 where: {
@@ -42,12 +43,14 @@ export const ProductController = {
                     image: image,
                     is_active: true,
                     type_id: uuidToBuffer(type_id),
+                    branch_id: uuidToBuffer(branch_id),
                 },
                 select: {
                     id: true,
                     name: true,
                     price: true,
                     type_id: true,
+                    branch_id: true,
                 },
             });
             
@@ -59,6 +62,7 @@ export const ProductController = {
                 ...newProduct,
                 id: bufferToUuid(Buffer.from(newProduct.id)),
                 type_id: bufferToUuid(Buffer.from(newProduct.type_id)),
+                branch_id: bufferToUuid(Buffer.from(newProduct.branch_id)),
             };
 
             res.status(200).json(formattedProduct);         
@@ -75,6 +79,7 @@ export const ProductController = {
                     price: true,
                     image: true,
                     type_id: true,
+                    branch_id: true,
                     is_active: true,
                     created_at: true,
                     updated_at: true,
@@ -90,6 +95,7 @@ export const ProductController = {
                 ...product,
                 id: bufferToUuid(Buffer.from(product.id)),
                 type_id: bufferToUuid(Buffer.from(product.type_id)),
+                branch_id: bufferToUuid(Buffer.from(product.branch_id)),
             }));
 
             res.status(200).json(formattedProducts);

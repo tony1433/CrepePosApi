@@ -8,7 +8,7 @@ UserRoute.post("/user/create", verifyToken, UserController.createUser);
 UserRoute.post("/user/login", UserController.login);
 UserRoute.get("/user/all", UserController.getAllUser);
 UserRoute.get("/user/cashier", UserController.getUserCashier);
-UserRoute.post("/user/update", UserController.updateUser);
-UserRoute.post("/user/delete", UserController.deleteUser);
+UserRoute.put("/user/update", UserController.updateUser);
+UserRoute.delete("/user/delete", UserController.deleteUser);
 
 export default UserRoute;

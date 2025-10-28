@@ -4,7 +4,7 @@ import { bufferToUuid, uuidToBuffer } from "../utils/common";
 
 export const ComboController = {
     async createCombo(req: any, res: any) {
-        const { name, description, price, combo_day } = req.body;
+        const { name, description, price, combo_day, branch_id } = req.body;
         try {
             const existingCombo = await prisma.combo.findFirst({
                 where: {
@@ -30,6 +30,7 @@ export const ComboController = {
                     price: price,
                     is_active: true,
                     combo_day: combo_day,
+                    branch_id: uuidToBuffer(branch_id),
                 },
                 select: {
                     id: true,
@@ -37,6 +38,7 @@ export const ComboController = {
                     name: true,
                     description: true,
                     price: true,
+                    branch_id: true,
                 },
             });
             
@@ -47,6 +49,7 @@ export const ComboController = {
             const formattedCombo = {
                 ...newCombo,
                 id: bufferToUuid(Buffer.from(newCombo.id)),
+                branch_id: bufferToUuid(Buffer.from(newCombo.branch_id)),
             };
 
             res.status(200).json(formattedCombo);         
@@ -65,12 +68,14 @@ export const ComboController = {
                     price: true,
                     is_active: true,
                     combo_day: true,
+                    branch_id: true,
                 },
             });
 
             const formattedCombos = combos.map((combo) => ({
                 ...combo,
                 id: bufferToUuid(Buffer.from(combo.id)),
+                branch_id: bufferToUuid(Buffer.from(combo.branch_id)),
             }));
 
             res.status(200).json(formattedCombos);

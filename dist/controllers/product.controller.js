@@ -19,7 +19,7 @@ const common_1 = require("../utils/common");
 exports.ProductController = {
     createProduct(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { name, price, image, type_id } = req.body;
+            const { name, price, image, type_id, branch_id } = req.body;
             try {
                 const product = yield prisma_1.default.product.findFirst({
                     where: {
@@ -53,18 +53,21 @@ exports.ProductController = {
                         image: image,
                         is_active: true,
                         type_id: (0, common_1.uuidToBuffer)(type_id),
+                        branch_id: (0, common_1.uuidToBuffer)(branch_id),
                     },
                     select: {
                         id: true,
                         name: true,
                         price: true,
                         type_id: true,
+                        branch_id: true,
                     },
                 });
                 if (!newProduct) {
                     return res.status(400).json({ message: "Error al insertar producto" });
                 }
-                res.status(200).json(newProduct);
+                const formattedProduct = Object.assign(Object.assign({}, newProduct), { id: (0, common_1.bufferToUuid)(Buffer.from(newProduct.id)), type_id: (0, common_1.bufferToUuid)(Buffer.from(newProduct.type_id)), branch_id: (0, common_1.bufferToUuid)(Buffer.from(newProduct.branch_id)) });
+                res.status(200).json(formattedProduct);
             }
             catch (error) {
                 return res.status(500).json({ message: "Error de servidor" + error });
@@ -81,11 +84,18 @@ exports.ProductController = {
                         price: true,
                         image: true,
                         type_id: true,
+                        branch_id: true,
+                        is_active: true,
                         created_at: true,
                         updated_at: true,
+                        type_product: {
+                            select: {
+                                name: true,
+                            },
+                        },
                     },
                 });
-                const formattedProducts = products.map((product) => (Object.assign(Object.assign({}, product), { id: (0, common_1.bufferToUuid)(Buffer.from(product.id)), type_product_id: (0, common_1.bufferToUuid)(Buffer.from(product.type_id)) })));
+                const formattedProducts = products.map((product) => (Object.assign(Object.assign({}, product), { id: (0, common_1.bufferToUuid)(Buffer.from(product.id)), type_id: (0, common_1.bufferToUuid)(Buffer.from(product.type_id)), branch_id: (0, common_1.bufferToUuid)(Buffer.from(product.branch_id)) })));
                 res.status(200).json(formattedProducts);
             }
             catch (error) {
@@ -93,4 +103,92 @@ exports.ProductController = {
             }
         });
     },
+    updateProduct(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { id, name, price, image, type_id, is_active } = req.body;
+            try {
+                // Verificar si el producto existe
+                const existingProduct = yield prisma_1.default.product.findUnique({
+                    where: {
+                        id: (0, common_1.uuidToBuffer)(id)
+                    }
+                });
+                if (!existingProduct) {
+                    return res.status(404).json({ message: "Producto no encontrado" });
+                }
+                // Si se proporciona type_id, verificar que existe
+                if (type_id) {
+                    const typeProduct = yield prisma_1.default.type_product.findUnique({
+                        where: {
+                            id: (0, common_1.uuidToBuffer)(type_id),
+                        },
+                    });
+                    if (!typeProduct) {
+                        return res.status(404).json({ message: "El tipo de producto no existe" });
+                    }
+                }
+                // Actualizar el producto
+                const updatedProduct = yield prisma_1.default.product.update({
+                    where: {
+                        id: (0, common_1.uuidToBuffer)(id)
+                    },
+                    data: {
+                        name: name,
+                        price: price,
+                        image: image,
+                        type_id: type_id ? (0, common_1.uuidToBuffer)(type_id) : undefined,
+                        is_active: is_active,
+                        updated_at: new Date()
+                    },
+                    select: {
+                        id: true,
+                        name: true,
+                        price: true,
+                        image: true,
+                        type_id: true,
+                        is_active: true,
+                        updated_at: true
+                    }
+                });
+                const formattedProduct = Object.assign(Object.assign({}, updatedProduct), { id: (0, common_1.bufferToUuid)(Buffer.from(updatedProduct.id)), type_id: (0, common_1.bufferToUuid)(Buffer.from(updatedProduct.type_id)) });
+                res.status(200).json(formattedProduct);
+            }
+            catch (error) {
+                return res.status(500).json({ message: "Error de servidor: " + error });
+            }
+        });
+    },
+    deleteProduct(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { id } = req.body;
+            try {
+                // Verificar si el producto existe
+                const existingProduct = yield prisma_1.default.product.findUnique({
+                    where: {
+                        id: (0, common_1.uuidToBuffer)(id)
+                    }
+                });
+                if (!existingProduct) {
+                    return res.status(404).json({ message: "Producto no encontrado" });
+                }
+                // Eliminar los products_ingredient asociados y luego el producto en una transacción
+                yield prisma_1.default.$transaction([
+                    prisma_1.default.product_ingredient.deleteMany({
+                        where: {
+                            product_id: (0, common_1.uuidToBuffer)(id)
+                        }
+                    }),
+                    prisma_1.default.product.delete({
+                        where: {
+                            id: (0, common_1.uuidToBuffer)(id)
+                        }
+                    })
+                ]);
+                res.status(200).json({ message: "Producto y sus ingredientes asociados eliminados exitosamente" });
+            }
+            catch (error) {
+                return res.status(500).json({ message: "Error de servidor: " + error });
+            }
+        });
+    }
 };

@@ -4,7 +4,7 @@ import { bufferToUuid, uuidToBuffer } from "../utils/common";
 
 export const IngredientController = {
     async createIngredient(req: any, res: any) {
-        const {name, current_stock, min_stock, unit_measurement, cost_unit } = req.body;
+        const {name, current_stock, min_stock, unit_measurement, cost_unit, branch_id } = req.body;
         try {
             const ingredient = await prisma.ingredient.findFirst({
                 where: {
@@ -30,6 +30,7 @@ export const IngredientController = {
                     min_stock: min_stock,
                     unit_measurement: unit_measurement,
                     cost_unit: cost_unit,
+                    branch_id: uuidToBuffer(branch_id),
                 },
                 select: {
                     id: true,
@@ -39,6 +40,7 @@ export const IngredientController = {
                     min_stock: true,
                     unit_measurement: true,
                     cost_unit: true,
+                    branch_id: true,
                 },
             });
             
@@ -49,6 +51,7 @@ export const IngredientController = {
             const formattedIngredient = {
                 ...newIngredient,
                 id: bufferToUuid(Buffer.from(newIngredient.id)),
+                branch_id: bufferToUuid(Buffer.from(newIngredient.branch_id)),
             };
 
             res.status(200).json(formattedIngredient);         
@@ -68,12 +71,14 @@ export const IngredientController = {
                     min_stock: true,
                     unit_measurement: true,
                     cost_unit: true,
+                    branch_id: true,
                 },
             });
 
             const formattedIngredients = ingredients.map((ingredient) => ({
                 ...ingredient,
                 id: bufferToUuid(Buffer.from(ingredient.id)),
+                branch_id: bufferToUuid(Buffer.from(ingredient.branch_id)),
             }));
 
             res.status(200).json(formattedIngredients);

@@ -11,6 +11,8 @@ import ComboRoute from './routes/combo.router';
 import ComboDetailRoute from './routes/combo_detail.router';
 import SaleRoute from './routes/sale.router';
 import SaleDetailRoute from './routes/sale_detail.router';
+import BranchRouter from './routes/branch.router';
+import UserBranchRouter from './routes/user_branch.router';
 
 const app = express();
 
@@ -29,6 +31,8 @@ app.use("/api", ComboRoute);
 app.use("/api", ComboDetailRoute);
 app.use("/api", SaleRoute);
 app.use("/api", SaleDetailRoute);
+app.use("/api", BranchRouter);
+app.use("/api", UserBranchRouter);
 
 const server = app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);

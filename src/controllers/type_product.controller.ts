@@ -4,7 +4,7 @@ import { bufferToUuid, uuidToBuffer } from "../utils/common";
 
 export const TypeProductController = {
     async createTypeProduct(req: any, res: any) {
-        const { name, description} = req.body;
+        const { name, description, branch_id} = req.body;
         try {
             const typeProduct = await prisma.type_product.findFirst({
                 where: {
@@ -27,11 +27,13 @@ export const TypeProductController = {
                     updated_at: new Date(),
                     name: name,
                     description: description,
+                    branch_id: uuidToBuffer(branch_id),
                 },
                 select: {
                     id: true,
                     name: true,
                     description: true,
+                    branch_id: true,
                 },
             });
             
@@ -42,6 +44,7 @@ export const TypeProductController = {
             const formattedTypeProduct = {
                 ...newTypeProduct,
                 id: bufferToUuid(Buffer.from(newTypeProduct.id)),
+                branch_id: bufferToUuid(Buffer.from(newTypeProduct.branch_id)),
             };
 
             res.status(200).json(formattedTypeProduct);         

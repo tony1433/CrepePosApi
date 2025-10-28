@@ -16,8 +16,12 @@ model combo {
   price        Float
   is_active    Boolean
   combo_day    String?        @db.VarChar(255)
+  branch_id    Bytes?         @db.Binary(16)
+  branch       branch?        @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_combo_branch")
   combo_detail combo_detail[]
   sale_detail  sale_detail[]
+
+  @@index([branch_id], map: "fk_combo_branch")
 }
 
 model combo_detail {
@@ -43,7 +47,11 @@ model ingredient {
   min_stock          Float
   cost_unit          Float
   name               String               @db.VarChar(255)
+  branch_id          Bytes?               @db.Binary(16)
+  branch             branch?              @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_ingredient_branch")
   product_ingredient product_ingredient[]
+
+  @@index([branch_id], map: "fk_ingredient_branch")
 }
 
 model product {
@@ -55,11 +63,14 @@ model product {
   price              Float
   image              String               @db.VarChar(255)
   type_id            Bytes                @db.Binary(16)
+  branch_id          Bytes?               @db.Binary(16)
+  branch             branch?              @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_product_branch")
   type_product       type_product         @relation(fields: [type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_type_product_id_Product")
   product_ingredient product_ingredient[]
   sale_detail        sale_detail[]
 
   @@index([type_id], map: "fk_type_product_id_Product")
+  @@index([branch_id], map: "fk_product_branch")
 }
 
 model sale {
@@ -100,21 +111,26 @@ model type_product {
   updated_at   DateTime       @db.DateTime(0)
   name         String         @db.VarChar(255)
   description  String         @db.VarChar(255)
+  branch_id    Bytes?         @db.Binary(16)
   combo_detail combo_detail[]
   product      product[]
+  branch       branch?        @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_type_product_branch")
+
+  @@index([branch_id], map: "fk_type_product_branch")
 }
 
 model user {
-  id         Bytes     @id @db.Binary(16)
-  is_active  Boolean
-  created_at DateTime  @db.DateTime(0)
-  updated_at DateTime  @db.DateTime(0)
-  name       String    @db.VarChar(50)
-  email      String    @db.VarChar(255)
-  password   String    @db.VarChar(1024)
-  role_id    Bytes     @db.Binary(16)
-  sale       sale[]
-  user_role  user_role @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_role_id_user")
+  id          Bytes         @id @db.Binary(16)
+  is_active   Boolean
+  created_at  DateTime      @db.DateTime(0)
+  updated_at  DateTime      @db.DateTime(0)
+  name        String        @db.VarChar(50)
+  email       String        @db.VarChar(255)
+  password    String        @db.VarChar(1024)
+  role_id     Bytes         @db.Binary(16)
+  sale        sale[]
+  user_role   user_role     @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_role_id_user")
+  user_branch user_branch[]
 
   @@index([role_id], map: "fk_user_role_id_user")
 }
@@ -142,6 +158,31 @@ model product_ingredient {
 
   @@index([product_id], map: "fk_Product_id_product_ingredient")
   @@index([ingredient_id], map: "fk_ingredients_id_product_ingredient")
+}
+
+model branch {
+  id           Bytes          @id @db.Binary(16)
+  name         String         @db.VarChar(255)
+  created_at   DateTime       @db.DateTime(0)
+  updated_at   DateTime       @db.DateTime(0)
+  combo        combo[]
+  ingredient   ingredient[]
+  product      product[]
+  type_product type_product[]
+  user_branch  user_branch[]
+}
+
+model user_branch {
+  id         Bytes    @id @db.Binary(16)
+  user_id    Bytes    @db.Binary(16)
+  branch_id  Bytes    @db.Binary(16)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  user       user     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "user_branch_ibfk_1")
+  branch     branch   @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "user_branch_ibfk_2")
+
+  @@index([branch_id], map: "branch_id")
+  @@index([user_id], map: "user_id")
 }
 
 enum sale_payment_method {

@@ -45,17 +45,20 @@ exports.UserController = {
                         updated_at: new Date(),
                         password: hashedPassword,
                         is_active: true,
-                        role_id: Buffer.from(role_id, "hex"),
+                        role_id: (0, common_1.uuidToBuffer)(role_id),
                     },
                     select: {
                         id: true,
                         name: true,
                         email: true,
                         created_at: true,
+                        updated_at: true,
                         is_active: true,
+                        role_id: true,
                         user_role: {
                             select: {
                                 code: true,
+                                name: true
                             },
                         },
                     },
@@ -63,7 +66,8 @@ exports.UserController = {
                 if (!newUser) {
                     return res.status(400).json({ message: "Error al insertar usuario" });
                 }
-                res.status(200).json(newUser);
+                const formattedUser = Object.assign(Object.assign({}, newUser), { id: (0, common_1.bufferToUuid)(Buffer.from(newUser.id)), role_id: role_id });
+                res.status(200).json(formattedUser);
             }
             catch (error) {
                 return res.status(500).json({ message: "Error de servidor" + error });
@@ -86,6 +90,7 @@ exports.UserController = {
                         is_active: true,
                         user_role: {
                             select: {
+                                name: true,
                                 code: true,
                             },
                         },
@@ -110,4 +115,141 @@ exports.UserController = {
             }
         });
     },
+    getAllUser(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const user = yield prisma_1.default.user.findMany({
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        is_active: true,
+                        user_role: {
+                            select: {
+                                name: true,
+                                code: true,
+                            },
+                        },
+                    },
+                });
+                const formattedUsers = user.map((u) => (Object.assign(Object.assign({}, u), { id: (0, common_1.bufferToUuid)(Buffer.from(u.id)) })));
+                res.status(200).json(formattedUsers);
+            }
+            catch (error) {
+                return res.status(500).json({ message: "Error de servidor" + error });
+            }
+        });
+    },
+    getUserCashier(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const user = yield prisma_1.default.user.findMany({
+                    where: {
+                        user_role: {
+                            code: 'cashier'
+                        }
+                    },
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        is_active: true,
+                        user_role: {
+                            select: {
+                                name: true,
+                                code: true,
+                            },
+                        },
+                    },
+                });
+                const formattedUsers = user.map((u) => (Object.assign(Object.assign({}, u), { id: (0, common_1.bufferToUuid)(Buffer.from(u.id)) })));
+                res.status(200).json(formattedUsers);
+            }
+            catch (error) {
+                return res.status(500).json({ message: "Error de servidor" + error });
+            }
+        });
+    },
+    updateUser(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { id, name, email, password, role_id, is_active } = req.body;
+            try {
+                const user = yield prisma_1.default.user.findFirst({
+                    where: {
+                        id: (0, common_1.uuidToBuffer)(id)
+                    }
+                });
+                if (!user) {
+                    return res.status(404).json({ message: "Usuario no encontrado" });
+                }
+                const updateData = {
+                    name,
+                    email,
+                    updated_at: new Date(),
+                    is_active
+                };
+                if (role_id) {
+                    updateData.role_id = (0, common_1.uuidToBuffer)(role_id);
+                }
+                if (password) {
+                    updateData.password = yield bcrypt_1.default.hash(password, 10);
+                }
+                const updatedUser = yield prisma_1.default.user.update({
+                    where: {
+                        id: (0, common_1.uuidToBuffer)(id)
+                    },
+                    data: updateData,
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        created_at: true,
+                        updated_at: true,
+                        is_active: true,
+                        role_id: true,
+                        user_role: {
+                            select: {
+                                code: true,
+                                name: true
+                            }
+                        }
+                    }
+                });
+                const formattedUser = Object.assign(Object.assign({}, updatedUser), { id: (0, common_1.bufferToUuid)(Buffer.from(updatedUser.id)), role_id: role_id || (0, common_1.bufferToUuid)(Buffer.from(updatedUser.role_id)) });
+                res.status(200).json(formattedUser);
+            }
+            catch (error) {
+                return res.status(500).json({ message: "Error de servidor: " + error });
+            }
+        });
+    },
+    deleteUser(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { id } = req.body;
+            try {
+                const user = yield prisma_1.default.user.findFirst({
+                    where: {
+                        id: (0, common_1.uuidToBuffer)(id)
+                    }
+                });
+                if (!user) {
+                    return res.status(404).json({ message: "Usuario no encontrado" });
+                }
+                // Soft delete - simplemente actualiza is_active a false
+                yield prisma_1.default.user.update({
+                    where: {
+                        id: (0, common_1.uuidToBuffer)(id)
+                    },
+                    data: {
+                        is_active: false,
+                        updated_at: new Date()
+                    }
+                });
+                res.status(200).json({ message: "Usuario desactivado correctamente" });
+            }
+            catch (error) {
+                return res.status(500).json({ message: "Error de servidor: " + error });
+            }
+        });
+    }
 };

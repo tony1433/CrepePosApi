@@ -19,7 +19,7 @@ const common_1 = require("../utils/common");
 exports.ComboController = {
     createCombo(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { name, description, price } = req.body;
+            const { name, description, price, combo_day, branch_id } = req.body;
             try {
                 const existingCombo = yield prisma_1.default.combo.findFirst({
                     where: {
@@ -42,6 +42,8 @@ exports.ComboController = {
                         description: description,
                         price: price,
                         is_active: true,
+                        combo_day: combo_day,
+                        branch_id: (0, common_1.uuidToBuffer)(branch_id),
                     },
                     select: {
                         id: true,
@@ -49,12 +51,13 @@ exports.ComboController = {
                         name: true,
                         description: true,
                         price: true,
+                        branch_id: true,
                     },
                 });
                 if (!newCombo) {
                     return res.status(400).json({ message: "Error al insertar combo" });
                 }
-                const formattedCombo = Object.assign(Object.assign({}, newCombo), { id: (0, common_1.bufferToUuid)(Buffer.from(newCombo.id)) });
+                const formattedCombo = Object.assign(Object.assign({}, newCombo), { id: (0, common_1.bufferToUuid)(Buffer.from(newCombo.id)), branch_id: (0, common_1.bufferToUuid)(Buffer.from(newCombo.branch_id)) });
                 res.status(200).json(formattedCombo);
             }
             catch (error) {
@@ -73,9 +76,11 @@ exports.ComboController = {
                         description: true,
                         price: true,
                         is_active: true,
+                        combo_day: true,
+                        branch_id: true,
                     },
                 });
-                const formattedCombos = combos.map((combo) => (Object.assign(Object.assign({}, combo), { id: (0, common_1.bufferToUuid)(Buffer.from(combo.id)) })));
+                const formattedCombos = combos.map((combo) => (Object.assign(Object.assign({}, combo), { id: (0, common_1.bufferToUuid)(Buffer.from(combo.id)), branch_id: (0, common_1.bufferToUuid)(Buffer.from(combo.branch_id)) })));
                 res.status(200).json(formattedCombos);
             }
             catch (error) {

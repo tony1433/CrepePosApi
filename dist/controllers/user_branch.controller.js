@@ -12,68 +12,58 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UserRoleController = void 0;
+exports.UserBranchController = void 0;
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const uuid_1 = require("uuid");
 const common_1 = require("../utils/common");
-exports.UserRoleController = {
-    createUserRole(req, res) {
+exports.UserBranchController = {
+    createUserBranch(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { code, name } = req.body;
+            const { user_id, branch_id } = req.body;
             try {
-                const role = yield prisma_1.default.user_role.findFirst({
-                    where: {
-                        code: code,
-                    },
-                });
-                if (role) {
-                    return res
-                        .status(409)
-                        .json({ message: "El rol ya se encuentra registrado" });
-                }
                 const uuid = (0, uuid_1.v4)();
-                const uuidBuffer = (0, common_1.uuidToBuffer)(uuid);
-                const newRole = yield prisma_1.default.user_role.create({
+                const userBranchBufferId = (0, common_1.uuidToBuffer)(uuid);
+                const newUserBranch = yield prisma_1.default.user_branch.create({
                     data: {
-                        id: uuidBuffer,
-                        is_active: true,
+                        id: userBranchBufferId,
                         created_at: new Date(),
                         updated_at: new Date(),
-                        name: name,
-                        code: code,
+                        user_id: (0, common_1.uuidToBuffer)(user_id),
+                        branch_id: (0, common_1.uuidToBuffer)(branch_id),
                     },
                     select: {
                         id: true,
-                        name: true,
-                        code: true,
+                        created_at: true,
+                        updated_at: true,
+                        user_id: true,
+                        branch_id: true,
                     },
                 });
-                if (!newRole) {
-                    return res.status(400).json({ message: "Error al insertar rol" });
+                if (!newUserBranch) {
+                    return res.status(400).json({ message: "Error al insertar usuario_sucursal" });
                 }
-                const formattedNewRole = Object.assign(Object.assign({}, newRole), { id: (0, common_1.bufferToUuid)(Buffer.from(newRole.id)) });
-                res.status(200).json(formattedNewRole);
+                const formattedUserBranch = Object.assign(Object.assign({}, newUserBranch), { id: (0, common_1.bufferToUuid)(Buffer.from(newUserBranch.id)), user_id: (0, common_1.bufferToUuid)(Buffer.from(newUserBranch.user_id)), branch_id: (0, common_1.bufferToUuid)(Buffer.from(newUserBranch.branch_id)) });
+                res.status(200).json(formattedUserBranch);
             }
             catch (error) {
                 return res.status(500).json({ message: "Error de servidor" + error });
             }
         });
     },
-    getUserRoles(req, res) {
+    getAllUserBranches(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const roles = yield prisma_1.default.user_role.findMany({
+                const userBranches = yield prisma_1.default.user_branch.findMany({
                     select: {
                         id: true,
-                        name: true,
-                        code: true,
-                        is_active: true,
                         created_at: true,
                         updated_at: true,
+                        user_id: true,
+                        branch_id: true,
                     },
                 });
-                const formattedRoles = roles.map((role) => (Object.assign(Object.assign({}, role), { id: (0, common_1.bufferToUuid)(Buffer.from(role.id)) })));
-                res.status(200).json(formattedRoles);
+                const formattedUserBranches = userBranches.map((userBranch) => (Object.assign(Object.assign({}, userBranch), { id: (0, common_1.bufferToUuid)(Buffer.from(userBranch.id)), user_id: (0, common_1.bufferToUuid)(Buffer.from(userBranch.user_id)), branch_id: (0, common_1.bufferToUuid)(Buffer.from(userBranch.branch_id)) })));
+                res.status(200).json(formattedUserBranches);
             }
             catch (error) {
                 return res.status(500).json({ message: "Error de servidor" + error });
