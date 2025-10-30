@@ -73,7 +73,34 @@ export const ProductController = {
     },
     async getProducts(req: any, res: any) {
         try {
+            // Obtener información del usuario desde el token
+            const user = req.user;
+            const userRole = user.user_role.code;
+            
+            let whereClause: any = {};
+
+            // Si el usuario es admin o cashier, filtrar por su branch
+            if (userRole === 'cashier') {
+                // Obtener el branch_id del usuario desde user_branch
+                const userBranch = await prisma.user_branch.findFirst({
+                    where: {
+                        user_id: uuidToBuffer(user.id)
+                    },
+                    select: {
+                        branch_id: true
+                    }
+                });
+
+                if (!userBranch) {
+                    return res.status(404).json({ message: "Usuario no está asociado a ninguna sucursal" });
+                }
+
+                whereClause.branch_id = userBranch.branch_id;
+            }
+            // Si es super_admin u otro rol, no aplicar filtro de branch (mostrar todos)
+
             const products = await prisma.product.findMany({
+                where: whereClause,
                 select: {
                     id: true,
                     name: true,

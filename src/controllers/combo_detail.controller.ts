@@ -57,7 +57,32 @@ export const ComboDetailController = {
     },
     async getAllComboDetails(req: any, res: any) {
         try {
+            const user = req.user;
+            const userRole = user.user_role.code;
+            
+            let whereClause: any = {};
+
+            // Si el usuario es admin o cashier, filtrar por su branch
+            if (userRole === 'cashier') {
+                // Obtener el branch_id del usuario desde user_branch
+                const userBranch = await prisma.user_branch.findFirst({
+                    where: {
+                        user_id: uuidToBuffer(user.id)
+                    },
+                    select: {
+                        branch_id: true
+                    }
+                });
+
+                if (!userBranch) {
+                    return res.status(404).json({ message: "Usuario no está asociado a ninguna sucursal" });
+                }
+
+                whereClause.branch_id = userBranch.branch_id;
+            }
+            
             const comboDetails = await prisma.combo_detail.findMany({
+                where: whereClause,
                 select: {
                     id: true,
                     updated_at: true,
