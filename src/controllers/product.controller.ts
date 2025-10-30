@@ -10,6 +10,7 @@ export const ProductController = {
             const product = await prisma.product.findFirst({
                 where: {
                    name: name,
+                   branch_id: uuidToBuffer(branch_id),
                 },
             });
 
