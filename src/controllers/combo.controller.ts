@@ -9,6 +9,7 @@ export const ComboController = {
             const existingCombo = await prisma.combo.findFirst({
                 where: {
                    name: name,
+                   branch_id: uuidToBuffer(branch_id),
                 },
             });
 
