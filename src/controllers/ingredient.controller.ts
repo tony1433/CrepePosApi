@@ -2,6 +2,22 @@ import prisma from "../lib/prisma";
 import { v4 as uuidv4 } from "uuid";
 import { bufferToUuid, uuidToBuffer } from "../utils/common";
 
+// Helper function para convertir fecha de México Central a UTC para comparación
+const mexicoToUTC = (mexicoDate: Date): Date => {
+    // México Central es UTC-6 (CST) o UTC-5 (CDT durante horario de verano)
+    // Para simplificar, usaremos UTC-6 como referencia
+    const utcDate = new Date(mexicoDate.getTime() + (6 * 60 * 60 * 1000));
+    return utcDate;
+};
+
+// Helper function para verificar si una venta ocurrió después de la última actualización del ingrediente
+const isSaleAfterIngredientUpdate = (saleDate: Date, ingredientUpdatedAt: Date | null): boolean => {
+    if (!ingredientUpdatedAt) return true; // Si no hay fecha de actualización, considerar todas las ventas
+    
+    // Las fechas de la BD están en UTC, así que comparamos directamente
+    return saleDate > ingredientUpdatedAt;
+};
+
 export const IngredientController = {
     async createIngredient(req: any, res: any) {
         const {name, current_stock, min_stock, unit_measurement, cost_unit, branch_id } = req.body;
@@ -92,7 +108,7 @@ export const IngredientController = {
                 }
             });
 
-            // Obtener todas las ventas de productos con sus detalles
+            // Obtener todas las ventas de productos con sus detalles (incluyendo fecha de venta)
             const productSales = await prisma.sale_detail.findMany({
                 where: {
                     product_id: { not: null }
@@ -102,6 +118,7 @@ export const IngredientController = {
                     product_id: true,
                     sale: {
                         select: {
+                            created_at: true, // Fecha de la venta en UTC
                             user: {
                                 select: {
                                     user_branch: {
@@ -116,7 +133,7 @@ export const IngredientController = {
                 }
             });
 
-            // Obtener todas las ventas de combos
+            // Obtener todas las ventas de combos (incluyendo fecha de venta)
             const comboSales = await prisma.sale_detail.findMany({
                 where: {
                     combo_id: { not: null }
@@ -126,6 +143,7 @@ export const IngredientController = {
                     note: true,
                     sale: {
                         select: {
+                            created_at: true, // Fecha de la venta en UTC
                             user: {
                                 select: {
                                     user_branch: {
@@ -151,10 +169,19 @@ export const IngredientController = {
                 let totalConsumed = 0;
                 const ingredientId = bufferToUuid(Buffer.from(ingredient.id));
                 const ingredientBranchId = ingredient.branch_id ? bufferToUuid(Buffer.from(ingredient.branch_id)) : null;
+                const ingredientUpdatedAt = ingredient.updated_at;
+
+                console.log(`\n=== Calculando consumo para ingrediente: ${ingredient.name} ===`);
+                console.log(`Última actualización del ingrediente: ${ingredientUpdatedAt} (UTC)`);
 
                 // Calcular consumo directo de productos
                 productSales.forEach(sale => {
                     if (!sale.product_id) return;
+                    
+                    // Solo considerar ventas posteriores a la última actualización del ingrediente
+                    if (!isSaleAfterIngredientUpdate(sale.sale.created_at, ingredientUpdatedAt)) {
+                        return; // Saltar esta venta porque ocurrió antes de la última actualización
+                    }
                     
                     const productId = bufferToUuid(Buffer.from(sale.product_id));
                     const key = `${ingredientId}-${productId}`;
@@ -172,9 +199,9 @@ export const IngredientController = {
                             bufferToUuid(Buffer.from(productIngredient.product.branch_id)) : null;
                         
                         if (isFromSameBranch && productBranchId === ingredientBranchId) {
-                            console.log('Adding product consumption:', sale.amount, 'x', productIngredient.amount);
-                            totalConsumed += sale.amount * productIngredient.amount;
-                            console.log('total consumed', totalConsumed);
+                            const consumption = sale.amount * productIngredient.amount;
+                            console.log(`Venta de producto: ${productIngredient.product.name} - Fecha: ${sale.sale.created_at} - Cantidad: ${sale.amount} x ${productIngredient.amount} = ${consumption}`);
+                            totalConsumed += consumption;
                         }
                     }
                 });
@@ -182,6 +209,11 @@ export const IngredientController = {
                 // Calcular consumo de combos
                 comboSales.forEach(comboSale => {
                     if (!comboSale.note) return;
+                    
+                    // Solo considerar ventas posteriores a la última actualización del ingrediente
+                    if (!isSaleAfterIngredientUpdate(comboSale.sale.created_at, ingredientUpdatedAt)) {
+                        return; // Saltar esta venta porque ocurrió antes de la última actualización
+                    }
                     
                     const userBranches = comboSale.sale.user.user_branch;
                     const isFromSameBranch = ingredientBranchId && userBranches.some(ub => 
@@ -199,8 +231,9 @@ export const IngredientController = {
                             if (piIngredientId === ingredientId && 
                                 productBranchId === ingredientBranchId &&
                                 comboSale.note.toLowerCase().includes(pi.product.name.toLowerCase())) {
-                                console.log('Adding combo consumption:', comboSale.amount, 'x', pi.amount);
-                                totalConsumed += comboSale.amount * pi.amount;
+                                const consumption = comboSale.amount * pi.amount;
+                                console.log(`Venta de combo: ${pi.product.name} (en nota: ${comboSale.note}) - Fecha: ${comboSale.sale.created_at} - Cantidad: ${comboSale.amount} x ${pi.amount} = ${consumption}`);
+                                totalConsumed += consumption;
                             }
                         });
                     }
@@ -208,6 +241,11 @@ export const IngredientController = {
 
                 // Calcular stock disponible
                 const availableStock = Math.max(0, ingredient.current_stock - totalConsumed);
+                
+                console.log(`Stock original: ${ingredient.current_stock}`);
+                console.log(`Total consumido (solo ventas posteriores a ${ingredientUpdatedAt}): ${totalConsumed}`);
+                console.log(`Stock disponible: ${availableStock}`);
+                console.log(`=== Fin cálculo para ${ingredient.name} ===\n`);
 
                 return {
                     ...ingredient,
@@ -216,7 +254,8 @@ export const IngredientController = {
                     current_stock: availableStock,
                     consumed_stock: totalConsumed,
                     available_stock: availableStock,
-                    is_low_stock: availableStock <= ingredient.min_stock
+                    is_low_stock: availableStock <= ingredient.min_stock,
+                    last_updated: ingredientUpdatedAt // Incluir la fecha de última actualización para referencia
                 };
             });
 
@@ -259,6 +298,7 @@ export const IngredientController = {
                                             amount: true,
                                             sale: {
                                                 select: {
+                                                    created_at: true,
                                                     user: {
                                                         select: {
                                                             user_branch: {
@@ -300,7 +340,12 @@ export const IngredientController = {
                 },
                 select: {
                     amount: true,
-                    note: true
+                    note: true,
+                    sale: {
+                        select: {
+                            created_at: true // Fecha de la venta para filtrar
+                        }
+                    }
                 }
             });
 
@@ -324,12 +369,18 @@ export const IngredientController = {
             const formattedIngredients = ingredients.map((ingredient) => {
                 let totalConsumed = 0;
                 const ingredientId = Buffer.from(ingredient.id);
+                const ingredientUpdatedAt = ingredient.updated_at;
 
                 // Calcular consumo directo de productos
                 for (const productIngredient of ingredient.product_ingredient) {
                     const product = productIngredient.product;
                     
                     for (const saleDetail of product.sale_detail) {
+                        // Solo considerar ventas posteriores a la última actualización del ingrediente
+                        if (!isSaleAfterIngredientUpdate(saleDetail.sale.created_at, ingredientUpdatedAt)) {
+                            continue; // Saltar esta venta
+                        }
+                        
                         // Solo considerar ventas de usuarios de esta sucursal
                         if (saleDetail.sale.user.user_branch.length > 0) {
                             totalConsumed += saleDetail.amount * productIngredient.amount;
@@ -339,6 +390,11 @@ export const IngredientController = {
 
                 // Calcular consumo de combos
                 for (const comboSale of comboSales) {
+                    // Solo considerar ventas posteriores a la última actualización del ingrediente
+                    if (!isSaleAfterIngredientUpdate(comboSale.sale.created_at, ingredientUpdatedAt)) {
+                        continue; // Saltar esta venta
+                    }
+                    
                     if (comboSale.note) {
                         // Buscar productos que coincidan con el nombre en la nota
                         const matchingProducts = products.filter(product => 
@@ -368,7 +424,8 @@ export const IngredientController = {
                     current_stock: ingredient.current_stock,
                     consumed_stock: totalConsumed,
                     available_stock: availableStock,
-                    is_low_stock: availableStock <= ingredient.min_stock
+                    is_low_stock: availableStock <= ingredient.min_stock,
+                    last_updated: ingredientUpdatedAt
                 };
             });
 
@@ -642,6 +699,172 @@ export const IngredientController = {
             res.status(200).json(formattedIngredient);
         } catch (error) {
             return res.status(500).json({ message: "Error de servidor" + error });
+        }
+    },
+    async resetIngredientConsumption(req: any, res: any) {
+        const { id } = req.body;
+        
+        try {
+            const uuidBuffer = uuidToBuffer(id);
+            
+            const ingredient = await prisma.ingredient.findFirst({
+                where: {
+                    id: uuidBuffer,
+                },
+            });
+
+            if (!ingredient) {
+                return res.status(404).json({ message: "Ingrediente no encontrado" });
+            }
+
+            // Actualizar solo el campo updated_at para resetear el punto de cálculo de consumo
+            const updatedIngredient = await prisma.ingredient.update({
+                where: {
+                    id: uuidBuffer,
+                },
+                data: {
+                    updated_at: new Date(), // Actualizar a la fecha/hora actual
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    updated_at: true,
+                    current_stock: true,
+                },
+            });
+
+            const formattedIngredient = {
+                ...updatedIngredient,
+                id: bufferToUuid(Buffer.from(updatedIngredient.id)),
+            };
+
+            res.status(200).json({ 
+                message: "Punto de cálculo de consumo resetado correctamente",
+                ingredient: formattedIngredient
+            });
+        } catch (error) {
+            return res.status(500).json({ message: "Error de servidor: " + error });
+        }
+    },
+    async getInventorySummary(req: any, res: any) {
+        const { branch_id } = req.query;
+        
+        try {
+            const branchBuffer = branch_id ? uuidToBuffer(branch_id as string) : null;
+            
+            // Obtener ingredientes (filtrados por sucursal si se especifica)
+            const ingredients = await prisma.ingredient.findMany({
+                where: branchBuffer ? { branch_id: branchBuffer } : {},
+                select: {
+                    id: true,
+                    name: true,
+                    current_stock: true,
+                    min_stock: true,
+                    unit_measurement: true,
+                    updated_at: true,
+                    branch_id: true,
+                }
+            });
+
+            // Obtener estadísticas de ventas desde la última actualización de cada ingrediente
+            const summaryData = await Promise.all(ingredients.map(async (ingredient) => {
+                const ingredientBuffer = Buffer.from(ingredient.id);
+                const ingredientBranchBuffer = ingredient.branch_id ? Buffer.from(ingredient.branch_id) : null;
+                
+                // Contar ventas de productos desde la última actualización
+                const productSalesCount = await prisma.sale_detail.count({
+                    where: {
+                        product: {
+                            product_ingredient: {
+                                some: {
+                                    ingredient_id: ingredientBuffer
+                                }
+                            },
+                            branch_id: ingredientBranchBuffer
+                        },
+                        sale: {
+                            created_at: ingredient.updated_at ? {
+                                gt: ingredient.updated_at
+                            } : undefined,
+                            user: ingredientBranchBuffer ? {
+                                user_branch: {
+                                    some: {
+                                        branch_id: ingredientBranchBuffer
+                                    }
+                                }
+                            } : undefined
+                        }
+                    }
+                });
+
+                // Contar ventas de combos desde la última actualización
+                const comboSalesCount = await prisma.sale_detail.count({
+                    where: {
+                        combo_id: { not: null },
+                        note: { not: null },
+                        sale: {
+                            created_at: ingredient.updated_at ? {
+                                gt: ingredient.updated_at
+                            } : undefined,
+                            user: ingredientBranchBuffer ? {
+                                user_branch: {
+                                    some: {
+                                        branch_id: ingredientBranchBuffer
+                                    }
+                                }
+                            } : undefined
+                        }
+                    }
+                });
+
+                const now = new Date();
+                const daysSinceUpdate = ingredient.updated_at ? 
+                    Math.floor((now.getTime() - ingredient.updated_at.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+                return {
+                    id: bufferToUuid(Buffer.from(ingredient.id)),
+                    name: ingredient.name,
+                    current_stock: ingredient.current_stock,
+                    min_stock: ingredient.min_stock,
+                    unit_measurement: ingredient.unit_measurement,
+                    branch_id: ingredient.branch_id ? bufferToUuid(Buffer.from(ingredient.branch_id)) : null,
+                    last_updated: ingredient.updated_at,
+                    days_since_update: daysSinceUpdate,
+                    sales_since_update: {
+                        product_sales: productSalesCount,
+                        combo_sales: comboSalesCount,
+                        total_sales: productSalesCount + comboSalesCount
+                    },
+                    needs_update: daysSinceUpdate !== null && (daysSinceUpdate > 7 || productSalesCount + comboSalesCount > 50)
+                };
+            }));
+
+            // Estadísticas generales
+            const totalIngredients = summaryData.length;
+            const ingredientsNeedingUpdate = summaryData.filter(item => item.needs_update).length;
+            const lowStockIngredients = summaryData.filter(item => item.current_stock <= item.min_stock).length;
+            const neverUpdatedIngredients = summaryData.filter(item => !item.last_updated).length;
+
+            const summary = {
+                overview: {
+                    total_ingredients: totalIngredients,
+                    ingredients_needing_update: ingredientsNeedingUpdate,
+                    low_stock_ingredients: lowStockIngredients,
+                    never_updated_ingredients: neverUpdatedIngredients
+                },
+                ingredients: summaryData.sort((a, b) => {
+                    // Ordenar por ingredientes que necesitan actualización primero
+                    if (a.needs_update && !b.needs_update) return -1;
+                    if (!a.needs_update && b.needs_update) return 1;
+                    // Luego por cantidad de ventas desde la última actualización
+                    return b.sales_since_update.total_sales - a.sales_since_update.total_sales;
+                })
+            };
+
+            res.status(200).json(summary);
+        } catch (error) {
+            console.error('Error in getInventorySummary:', error);
+            return res.status(500).json({ message: "Error de servidor: " + error });
         }
     },
     async deleteIngredient(req: any, res: any) {
