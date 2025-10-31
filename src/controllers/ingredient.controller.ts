@@ -250,11 +250,16 @@ export const IngredientController = {
                         bufferToUuid(Buffer.from(ub.branch_id)) === ingredientBranchId
                     );
 
-                    if (isFromSameBranch && comboSale.combo && comboSale.combo.combo_detail) {
+                    if (isFromSameBranch && comboSale.combo && comboSale.combo.combo_detail && comboSale.note) {
                         // Procesar cada detalle del combo (cada tipo de producto en el combo)
                         comboSale.combo.combo_detail.forEach(comboDetail => {
-                            // Procesar cada producto de este tipo de producto
-                            comboDetail.type_product.product.forEach(product => {
+                            // De todos los productos de este tipo, solo considerar los que aparecen en la nota
+                            const relevantProducts = comboDetail.type_product.product.filter(product => {
+                                return comboSale.note && comboSale.note.toLowerCase().includes(product.name.toLowerCase());
+                            });
+                            
+                            // Procesar solo los productos relevantes (que aparecen en la nota)
+                            relevantProducts.forEach(product => {
                                 const productBranchId = product.branch_id ? 
                                     bufferToUuid(Buffer.from(product.branch_id)) : null;
                                 
@@ -268,7 +273,7 @@ export const IngredientController = {
                                         if (piIngredientId === ingredientId) {
                                             // Calcular consumo: cantidad_combo * cantidad_tipo_producto_en_combo * cantidad_ingrediente_en_producto
                                             const consumption = comboSale.amount * comboDetail.amount * productIngredient.amount;
-                                            console.log(`Venta de combo: ${comboSale.combo.name} -> ${product.name} - Fecha: ${comboSale.sale.created_at} - Cantidad combo: ${comboSale.amount} x Cantidad en combo: ${comboDetail.amount} x Ingrediente por producto: ${productIngredient.amount} = ${consumption}`);
+                                            console.log(`Venta de combo: ${comboSale.combo.name} -> ${product.name} (filtrado por nota) - Fecha: ${comboSale.sale.created_at} - Cantidad combo: ${comboSale.amount} x Cantidad en combo: ${comboDetail.amount} x Ingrediente por producto: ${productIngredient.amount} = ${consumption}`);
                                             totalConsumed += consumption;
                                         }
                                     });
@@ -448,11 +453,16 @@ export const IngredientController = {
                         continue; // Saltar esta venta
                     }
                     
-                    if (comboSale.combo && comboSale.combo.combo_detail) {
+                    if (comboSale.combo && comboSale.combo.combo_detail && comboSale.note) {
                         // Procesar cada detalle del combo (cada tipo de producto en el combo)
                         comboSale.combo.combo_detail.forEach(comboDetail => {
-                            // Procesar cada producto de este tipo de producto
-                            comboDetail.type_product.product.forEach(product => {
+                            // De todos los productos de este tipo, solo considerar los que aparecen en la nota
+                            const relevantProducts = comboDetail.type_product.product.filter(product => {
+                                return comboSale.note && comboSale.note.toLowerCase().includes(product.name.toLowerCase());
+                            });
+                            
+                            // Procesar solo los productos relevantes (que aparecen en la nota)
+                            relevantProducts.forEach(product => {
                                 const productBranchId = product.branch_id ? 
                                     bufferToUuid(Buffer.from(product.branch_id)) : null;
                                 const branchIdStr = bufferToUuid(Buffer.from(branchBuffer));
@@ -661,11 +671,16 @@ export const IngredientController = {
             // Procesar consumo de combos basado en combo_detail
             const comboConsumptionProcessed = [];
             for (const comboSale of comboConsumption) {
-                if (comboSale.combo && comboSale.combo.combo_detail) {
+                if (comboSale.combo && comboSale.combo.combo_detail && comboSale.note) {
                     // Procesar cada detalle del combo (cada tipo de producto en el combo)
                     comboSale.combo.combo_detail.forEach(comboDetail => {
-                        // Procesar cada producto de este tipo de producto
-                        comboDetail.type_product.product.forEach(product => {
+                        // De todos los productos de este tipo, solo considerar los que aparecen en la nota
+                        const relevantProducts = comboDetail.type_product.product.filter(product => {
+                            return comboSale.note && comboSale.note.toLowerCase().includes(product.name.toLowerCase());
+                        });
+                        
+                        // Procesar solo los productos relevantes (que aparecen en la nota)
+                        relevantProducts.forEach(product => {
                             const productBranchId = product.branch_id ? 
                                 bufferToUuid(Buffer.from(product.branch_id)) : null;
                             const targetBranchId = branchBuffer ? bufferToUuid(Buffer.from(branchBuffer)) : null;
@@ -679,7 +694,7 @@ export const IngredientController = {
                                     comboConsumptionProcessed.push({
                                         date: comboSale.sale.created_at,
                                         type: 'combo',
-                                        item_name: `${comboSale.combo.name} -> ${product.name}`,
+                                        item_name: `${comboSale.combo.name} -> ${product.name} (filtrado por nota)`,
                                         quantity_sold: comboSale.amount,
                                         combo_detail_amount: comboDetail.amount,
                                         ingredient_per_product: productIngredient.amount,
