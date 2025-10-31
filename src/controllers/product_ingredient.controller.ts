@@ -7,7 +7,27 @@ export const ProductIngredientController = {
         const {is_base, amount, product_id, ingredient_id } = req.body;
         try {
             // Verificar si es un ingrediente virtual "Mezcla de harina"
-            if (ingredient_id === "virtual-mezcla-harina") {
+            const isVirtualIngredient = ingredient_id === "virtual-mezcla-harina" || 
+                                      ingredient_id.startsWith("virtual-mezcla-harina-");
+            
+            if (isVirtualIngredient) {
+                // Primero obtener la información del producto para conocer su branch_id
+                const product = await prisma.product.findUnique({
+                    where: {
+                        id: uuidToBuffer(product_id)
+                    },
+                    select: {
+                        branch_id: true,
+                        name: true
+                    }
+                });
+
+                if (!product) {
+                    return res.status(404).json({ 
+                        message: "Producto no encontrado" 
+                    });
+                }
+
                 // Definir la receta del ingrediente virtual
                 const VIRTUAL_RECIPE = [
                     { name: "Leche", amount: 12.74 },
@@ -15,22 +35,36 @@ export const ProductIngredientController = {
                     { name: "Harina", amount: 19.11 }
                 ];
 
-                // Obtener los ingredientes reales de la receta
+                // Obtener los ingredientes reales de la receta SOLO de la misma sucursal del producto
                 const realIngredients = await prisma.ingredient.findMany({
                     where: {
                         name: {
                             in: VIRTUAL_RECIPE.map(r => r.name)
-                        }
+                        },
+                        branch_id: product.branch_id // Filtrar por la misma sucursal del producto
                     },
                     select: {
                         id: true,
-                        name: true
+                        name: true,
+                        branch_id: true
                     }
                 });
 
+                console.log('Ingredientes encontrados:', realIngredients.map(ing => ({
+                    name: ing.name,
+                    id: bufferToUuid(Buffer.from(ing.id)),
+                    branch_id: ing.branch_id ? bufferToUuid(Buffer.from(ing.branch_id)) : null
+                })));
+
                 if (realIngredients.length !== VIRTUAL_RECIPE.length) {
+                    const foundIngredients = realIngredients.map(ing => ing.name);
+                    const missingIngredients = VIRTUAL_RECIPE.map(r => r.name).filter(name => !foundIngredients.includes(name));
+                    
                     return res.status(400).json({ 
-                        message: "No se encontraron todos los ingredientes necesarios para la mezcla de harina" 
+                        message: `No se encontraron todos los ingredientes necesarios para la mezcla de harina en la sucursal del producto "${product.name}". Faltan: ${missingIngredients.join(', ')}`,
+                        missing_ingredients: missingIngredients,
+                        found_ingredients: foundIngredients,
+                        product_branch_id: product.branch_id ? bufferToUuid(Buffer.from(product.branch_id)) : null
                     });
                 }
 
@@ -44,7 +78,7 @@ export const ProductIngredientController = {
                     const existing = await prisma.product_ingredient.findFirst({
                         where: {
                             product_id: uuidToBuffer(product_id),
-                            ingredient_id: Buffer.from(realIngredient.id),
+                            ingredient_id: realIngredient.id, // realIngredient.id ya es un Buffer
                         },
                     });
 
@@ -57,9 +91,9 @@ export const ProductIngredientController = {
                                 created_at: new Date(),
                                 updated_at: new Date(),
                                 is_base: is_base,
-                                amount: amount * recipeItem.amount, // Multiplicar por la cantidad de la receta
+                                amount: amount, // Multiplicar por la cantidad de la receta
                                 product_id: uuidToBuffer(product_id),
-                                ingredient_id: Buffer.from(realIngredient.id),
+                                ingredient_id: realIngredient.id, // realIngredient.id ya es un Buffer
                             },
                             select: {
                                 id: true,
@@ -89,6 +123,26 @@ export const ProductIngredientController = {
             }
 
             // Lógica normal para ingredientes no virtuales
+            // Primero verificar que el ingrediente existe
+            const ingredient = await prisma.ingredient.findUnique({
+                where: {
+                    id: uuidToBuffer(ingredient_id)
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    branch_id: true
+                }
+            });
+
+            if (!ingredient) {
+                return res.status(404).json({ 
+                    message: "Ingrediente no encontrado",
+                    ingredient_id: ingredient_id
+                });
+            }
+
+            // Verificar que no exista ya la relación
             const existingProductIngredient = await prisma.product_ingredient.findFirst({
                 where: {
                     product_id: uuidToBuffer(product_id),
@@ -97,7 +151,10 @@ export const ProductIngredientController = {
             });
 
             if (existingProductIngredient) {
-                return res.status(400).json({ message: "El ingrediente ya está asociado al producto" });
+                return res.status(400).json({ 
+                    message: "El ingrediente ya está asociado al producto",
+                    ingredient_name: ingredient.name
+                });
             }  
             
             const uuid = uuidv4();
@@ -129,11 +186,29 @@ export const ProductIngredientController = {
                 ...productIngredient,
                 product_id: bufferToUuid(Buffer.from(productIngredient.product_id)),
                 ingredient_id: bufferToUuid(Buffer.from(productIngredient.ingredient_id)),
+                ingredient_name: ingredient.name
             };
 
-            res.status(200).json(formattedProductIngredient);         
+            res.status(200).json({
+                message: "Ingrediente agregado al producto correctamente",
+                product_ingredient: formattedProductIngredient
+            });         
         } catch (error) {
-            return res.status(500).json({ message: "Error de servidor" + error });
+            console.error('Error in createProductIngredient:', error);
+            
+            // Si es un error de Prisma, proporcionar más información
+            if (error.code === 'P2003') {
+                return res.status(400).json({ 
+                    message: "Error de clave foránea: El ingrediente o producto especificado no existe",
+                    error_code: error.code,
+                    error_details: error.meta
+                });
+            }
+            
+            return res.status(500).json({ 
+                message: "Error de servidor: " + error.message,
+                error_type: error.constructor.name
+            });
         }
     },
     async getAllProductIngredients(req: any, res: any) {
@@ -164,6 +239,21 @@ export const ProductIngredientController = {
     async getProductIngredients(req: any, res: any) {
         const { id } = req.params;
         try {
+            // Obtener información del producto para conocer su branch_id
+            const product = await prisma.product.findUnique({
+                where: {
+                    id: uuidToBuffer(id)
+                },
+                select: {
+                    branch_id: true,
+                    name: true
+                }
+            });
+
+            if (!product) {
+                return res.status(404).json({ message: "Producto no encontrado" });
+            }
+
             const productIngredients = await prisma.product_ingredient.findMany({
                 where: {
                     product_id: uuidToBuffer(id),
@@ -222,6 +312,10 @@ export const ProductIngredientController = {
                     const baseIngredient = virtualIngredients.find(vi => vi.ingredient.name === "Leche");
                     const totalAmount = baseIngredient ? baseIngredient.amount : virtualIngredients[0].amount;
 
+                    // Generar ID virtual basado en la sucursal del producto
+                    const branchId = product.branch_id ? bufferToUuid(Buffer.from(product.branch_id)) : 'no-branch';
+                    const virtualIngredientId = `virtual-mezcla-harina-${branchId}`;
+
                     // Crear el ingrediente virtual agrupado
                     formattedProductIngredients.push({
                         id: "virtual-group-mezcla-harina",
@@ -229,7 +323,7 @@ export const ProductIngredientController = {
                         is_base: virtualIngredients[0].is_base,
                         amount: totalAmount,
                         product_id: bufferToUuid(Buffer.from(virtualIngredients[0].product_id)),
-                        ingredient_id: "virtual-mezcla-harina",
+                        ingredient_id: virtualIngredientId,
                         ingredient: {
                             name: "Mezcla de harina",
                             unit_measurement: "G"
@@ -324,7 +418,11 @@ export const ProductIngredientController = {
             }
 
             // Verificar si se está intentando eliminar un ingrediente virtual "Mezcla de harina"
-            if (ingredient_id === "virtual-mezcla-harina" || id === "virtual-group-mezcla-harina") {
+            const isVirtualIngredientDelete = ingredient_id === "virtual-mezcla-harina" || 
+                                            ingredient_id?.startsWith("virtual-mezcla-harina-") ||
+                                            id === "virtual-group-mezcla-harina";
+            
+            if (isVirtualIngredientDelete) {
                 // Validar que se proporcione product_id para ingredientes virtuales
                 if (!product_id) {
                     return res.status(400).json({ 
@@ -332,25 +430,44 @@ export const ProductIngredientController = {
                     });
                 }
 
+                // Primero obtener la información del producto para conocer su branch_id
+                const product = await prisma.product.findUnique({
+                    where: {
+                        id: uuidToBuffer(product_id)
+                    },
+                    select: {
+                        branch_id: true,
+                        name: true
+                    }
+                });
+
+                if (!product) {
+                    return res.status(404).json({ 
+                        message: "Producto no encontrado" 
+                    });
+                }
+
                 // Definir los ingredientes que forman la mezcla
                 const VIRTUAL_RECIPE_NAMES = ["Leche", "Mantequilla", "Harina"];
                 
-                // Obtener los ingredientes reales de la receta
+                // Obtener los ingredientes reales de la receta SOLO de la misma sucursal del producto
                 const realIngredients = await prisma.ingredient.findMany({
                     where: {
                         name: {
                             in: VIRTUAL_RECIPE_NAMES
-                        }
+                        },
+                        branch_id: product.branch_id // Filtrar por la misma sucursal del producto
                     },
                     select: {
                         id: true,
-                        name: true
+                        name: true,
+                        branch_id: true
                     }
                 });
 
                 if (realIngredients.length === 0) {
                     return res.status(404).json({ 
-                        message: "No se encontraron ingredientes de la mezcla para eliminar" 
+                        message: `No se encontraron ingredientes de la mezcla para eliminar en la sucursal del producto "${product.name}"` 
                     });
                 }
 
@@ -457,25 +574,44 @@ export const ProductIngredientController = {
                 });
             }
 
+            // Primero obtener la información del producto para conocer su branch_id
+            const product = await prisma.product.findUnique({
+                where: {
+                    id: uuidToBuffer(product_id)
+                },
+                select: {
+                    branch_id: true,
+                    name: true
+                }
+            });
+
+            if (!product) {
+                return res.status(404).json({ 
+                    message: "Producto no encontrado" 
+                });
+            }
+
             // Definir los ingredientes que forman la mezcla
             const VIRTUAL_RECIPE_NAMES = ["Leche", "Mantequilla", "Harina"];
             
-            // Obtener los ingredientes reales de la receta
+            // Obtener los ingredientes reales de la receta SOLO de la misma sucursal del producto
             const realIngredients = await prisma.ingredient.findMany({
                 where: {
                     name: {
                         in: VIRTUAL_RECIPE_NAMES
-                    }
+                    },
+                    branch_id: product.branch_id // Filtrar por la misma sucursal del producto
                 },
                 select: {
                     id: true,
-                    name: true
+                    name: true,
+                    branch_id: true
                 }
             });
 
             if (realIngredients.length === 0) {
                 return res.status(404).json({ 
-                    message: "No se encontraron ingredientes de la mezcla" 
+                    message: `No se encontraron ingredientes de la mezcla en la sucursal del producto "${product.name}"` 
                 });
             }
 

@@ -908,6 +908,7 @@ export const IngredientController = {
 
     // Método para obtener todos los ingredientes incluyendo virtuales
     async getAllIngredientsWithVirtual(req: any, res: any) {
+        
         try {
             // Definir la configuración del ingrediente virtual
             const VIRTUAL_INGREDIENT_CONFIG = {
@@ -919,8 +920,7 @@ export const IngredientController = {
                 ],
                 unit_measurement: "G"
             };
-
-            // Obtener todos los ingredientes básicos
+            
             const ingredients = await prisma.ingredient.findMany({
                 select: {
                     id: true,
@@ -944,39 +944,59 @@ export const IngredientController = {
                 };
             });
 
-            // Agregar el ingrediente virtual si existen los ingredientes base
-            const recipeIngredients = VIRTUAL_INGREDIENT_CONFIG.recipe.map(recipeItem => 
-                formattedIngredients.find(ing => ing.name === recipeItem.name)
-            ).filter(Boolean);
+            // Agrupar ingredientes por sucursal para crear ingredientes virtuales
+            const ingredientsByBranch = formattedIngredients.reduce((acc, ingredient) => {
+                const branchId = ingredient.branch_id || 'no-branch';
+                if (!acc[branchId]) {
+                    acc[branchId] = [];
+                }
+                acc[branchId].push(ingredient);
+                return acc;
+            }, {} as Record<string, typeof formattedIngredients>);
 
-            if (recipeIngredients.length === VIRTUAL_INGREDIENT_CONFIG.recipe.length) {
-                // Calcular el stock disponible basado en la receta
-                const availableVirtualStock = Math.floor(Math.min(
-                    ...VIRTUAL_INGREDIENT_CONFIG.recipe.map((recipeItem, index) => {
-                        const ingredient = recipeIngredients[index];
-                        return ingredient ? ingredient.current_stock / recipeItem.amount : 0;
-                    })
-                ));
+            // Crear ingredientes virtuales para cada sucursal que tenga todos los ingredientes necesarios
+            Object.entries(ingredientsByBranch).forEach(([branchId, branchIngredients]) => {
+                // Buscar los ingredientes de la receta en esta sucursal específica
+                const recipeIngredients = VIRTUAL_INGREDIENT_CONFIG.recipe.map(recipeItem => 
+                    branchIngredients.find(ing => ing.name === recipeItem.name)
+                ).filter(Boolean);
 
-                // Calcular el costo unitario promedio
-                const averageCost = recipeIngredients.reduce((sum, ing) => sum + ing.cost_unit, 0) / recipeIngredients.length;
+                // Solo crear el ingrediente virtual si están todos los ingredientes de la receta
+                if (recipeIngredients.length === VIRTUAL_INGREDIENT_CONFIG.recipe.length) {
+                    // Calcular el stock disponible basado en la receta
+                    const availableVirtualStock = Math.floor(Math.min(
+                        ...VIRTUAL_INGREDIENT_CONFIG.recipe.map((recipeItem, index) => {
+                            const ingredient = recipeIngredients[index];
+                            return ingredient ? ingredient.current_stock / recipeItem.amount : 0;
+                        })
+                    ));
 
-                const virtualIngredient = {
-                    id: "virtual-mezcla-harina", // ID especial para el ingrediente virtual
-                    created_at: new Date(),
-                    updated_at: new Date(),
-                    name: VIRTUAL_INGREDIENT_CONFIG.name,
-                    current_stock: availableVirtualStock,
-                    min_stock: 1,
-                    unit_measurement: VIRTUAL_INGREDIENT_CONFIG.unit_measurement,
-                    cost_unit: averageCost,
-                    branch_id: recipeIngredients[0]?.branch_id || null,
-                    is_virtual: true,
-                    recipe_ingredients: VIRTUAL_INGREDIENT_CONFIG.recipe
-                };
+                    // Calcular el costo unitario promedio
+                    const averageCost = recipeIngredients.reduce((sum, ing) => sum + ing.cost_unit, 0) / recipeIngredients.length;
 
-                formattedIngredients.push(virtualIngredient);
-            }
+                    const virtualIngredient = {
+                        id: `virtual-mezcla-harina-${branchId}`, // ID único por sucursal
+                        created_at: new Date(),
+                        updated_at: new Date(),
+                        name: VIRTUAL_INGREDIENT_CONFIG.name,
+                        current_stock: availableVirtualStock,
+                        min_stock: 1,
+                        unit_measurement: VIRTUAL_INGREDIENT_CONFIG.unit_measurement,
+                        cost_unit: averageCost,
+                        branch_id: branchId === 'no-branch' ? null : branchId,
+                        is_virtual: true,
+                        recipe_ingredients: VIRTUAL_INGREDIENT_CONFIG.recipe,
+                        recipe_details: recipeIngredients.map(ing => ({
+                            id: ing.id,
+                            name: ing.name,
+                            current_stock: ing.current_stock,
+                            unit_measurement: ing.unit_measurement
+                        }))
+                    };
+
+                    formattedIngredients.push(virtualIngredient);
+                }
+            });
 
             res.status(200).json(formattedIngredients);
         } catch (error) {
