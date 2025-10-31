@@ -91,7 +91,7 @@ export const ProductIngredientController = {
                                 created_at: new Date(),
                                 updated_at: new Date(),
                                 is_base: is_base,
-                                amount: amount, // Multiplicar por la cantidad de la receta
+                                amount: recipeItem.amount, // Multiplicar por la cantidad de la receta
                                 product_id: uuidToBuffer(product_id),
                                 ingredient_id: realIngredient.id, // realIngredient.id ya es un Buffer
                             },
