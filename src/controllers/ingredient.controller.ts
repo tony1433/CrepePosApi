@@ -81,6 +81,8 @@ export const IngredientController = {
     },
     async getAllIngredients(req: any, res: any) {
         try {
+            console.log('\n=== INICIANDO CÁLCULO DE INGREDIENTES ===');
+            
             // Obtener todos los ingredientes básicos
             const ingredients = await prisma.ingredient.findMany({
                 select: {
@@ -251,34 +253,47 @@ export const IngredientController = {
                     );
 
                     if (isFromSameBranch && comboSale.combo && comboSale.combo.combo_detail && comboSale.note) {
-                        // Procesar cada detalle del combo (cada tipo de producto en el combo)
+                        // NUEVO ENFOQUE: Usar la nota para identificar productos específicos y calcular directamente
+                        // En lugar de iterar por todos los combo_detail, buscar directamente los productos mencionados
+                        
+                        const noteProducts = [];
+                        // Obtener todos los productos mencionados en la nota de todos los combo_detail
                         comboSale.combo.combo_detail.forEach(comboDetail => {
-                            // De todos los productos de este tipo, solo considerar los que aparecen en la nota
-                            const relevantProducts = comboDetail.type_product.product.filter(product => {
-                                return comboSale.note && comboSale.note.toLowerCase().includes(product.name.toLowerCase());
-                            });
-                            
-                            // Procesar solo los productos relevantes (que aparecen en la nota)
-                            relevantProducts.forEach(product => {
-                                const productBranchId = product.branch_id ? 
-                                    bufferToUuid(Buffer.from(product.branch_id)) : null;
-                                
-                                // Verificar que el producto sea de la misma sucursal
-                                if (productBranchId === ingredientBranchId) {
-                                    // Procesar cada ingrediente de este producto
-                                    product.product_ingredient.forEach(productIngredient => {
-                                        const piIngredientId = bufferToUuid(Buffer.from(productIngredient.ingredient_id));
-                                        
-                                        // Verificar que sea el ingrediente correcto
-                                        if (piIngredientId === ingredientId) {
-                                            // Calcular consumo: cantidad_combo * cantidad_tipo_producto_en_combo * cantidad_ingrediente_en_producto
-                                            const consumption = comboSale.amount * comboDetail.amount * productIngredient.amount;
-                                            console.log(`Venta de combo: ${comboSale.combo.name} -> ${product.name} (filtrado por nota) - Fecha: ${comboSale.sale.created_at} - Cantidad combo: ${comboSale.amount} x Cantidad en combo: ${comboDetail.amount} x Ingrediente por producto: ${productIngredient.amount} = ${consumption}`);
-                                            totalConsumed += consumption;
-                                        }
-                                    });
+                            comboDetail.type_product.product.forEach(product => {
+                                if (comboSale.note && comboSale.note.toLowerCase().includes(product.name.toLowerCase())) {
+                                    const productBranchId = product.branch_id ? 
+                                        bufferToUuid(Buffer.from(product.branch_id)) : null;
+                                    
+                                    if (productBranchId === ingredientBranchId) {
+                                        noteProducts.push({
+                                            name: product.name,
+                                            comboDetailAmount: comboDetail.amount,
+                                            productIngredients: product.product_ingredient
+                                        });
+                                    }
                                 }
                             });
+                        });
+                        
+                        // Procesar cada producto único encontrado en la nota
+                        const processedProducts = new Set();
+                        noteProducts.forEach(noteProduct => {
+                            // Evitar procesar el mismo producto múltiples veces
+                            if (!processedProducts.has(noteProduct.name)) {
+                                processedProducts.add(noteProduct.name);
+                                
+                                // Procesar los ingredientes de este producto
+                                noteProduct.productIngredients.forEach(productIngredient => {
+                                    const piIngredientId = bufferToUuid(Buffer.from(productIngredient.ingredient_id));
+                                    
+                                    if (piIngredientId === ingredientId) {
+                                        // Calcular consumo: cantidad_combo * cantidad_en_combo * cantidad_ingrediente_por_producto
+                                        const consumption = comboSale.amount * noteProduct.comboDetailAmount * productIngredient.amount;
+                                        console.log(`Venta de combo: ${comboSale.combo.name} -> ${noteProduct.name} - Cantidad: ${comboSale.amount} x ${noteProduct.comboDetailAmount} x ${productIngredient.amount} = ${consumption}`);
+                                        totalConsumed += consumption;
+                                    }
+                                });
+                            }
                         });
                     }
                 });
@@ -454,32 +469,45 @@ export const IngredientController = {
                     }
                     
                     if (comboSale.combo && comboSale.combo.combo_detail && comboSale.note) {
-                        // Procesar cada detalle del combo (cada tipo de producto en el combo)
+                        // NUEVO ENFOQUE: Usar la nota para identificar productos específicos y calcular directamente
+                        const noteProducts = [];
+                        const branchIdStr = bufferToUuid(Buffer.from(branchBuffer));
+                        
+                        // Obtener todos los productos mencionados en la nota de todos los combo_detail
                         comboSale.combo.combo_detail.forEach(comboDetail => {
-                            // De todos los productos de este tipo, solo considerar los que aparecen en la nota
-                            const relevantProducts = comboDetail.type_product.product.filter(product => {
-                                return comboSale.note && comboSale.note.toLowerCase().includes(product.name.toLowerCase());
-                            });
-                            
-                            // Procesar solo los productos relevantes (que aparecen en la nota)
-                            relevantProducts.forEach(product => {
-                                const productBranchId = product.branch_id ? 
-                                    bufferToUuid(Buffer.from(product.branch_id)) : null;
-                                const branchIdStr = bufferToUuid(Buffer.from(branchBuffer));
-                                
-                                // Verificar que el producto sea de la misma sucursal
-                                if (productBranchId === branchIdStr) {
-                                    // Procesar cada ingrediente de este producto
-                                    product.product_ingredient.forEach(productIngredient => {
-                                        // Verificar que sea el ingrediente correcto
-                                        if (Buffer.compare(Buffer.from(productIngredient.ingredient_id), ingredientId) === 0) {
-                                            // Calcular consumo: cantidad_combo * cantidad_tipo_producto_en_combo * cantidad_ingrediente_en_producto
-                                            const consumption = comboSale.amount * comboDetail.amount * productIngredient.amount;
-                                            totalConsumed += consumption;
-                                        }
-                                    });
+                            comboDetail.type_product.product.forEach(product => {
+                                if (comboSale.note && comboSale.note.toLowerCase().includes(product.name.toLowerCase())) {
+                                    const productBranchId = product.branch_id ? 
+                                        bufferToUuid(Buffer.from(product.branch_id)) : null;
+                                    
+                                    if (productBranchId === branchIdStr) {
+                                        noteProducts.push({
+                                            name: product.name,
+                                            comboDetailAmount: comboDetail.amount,
+                                            productIngredients: product.product_ingredient
+                                        });
+                                    }
                                 }
                             });
+                        });
+                        
+                        // Procesar cada producto único encontrado en la nota
+                        const processedProducts = new Set();
+                        noteProducts.forEach(noteProduct => {
+                            // Evitar procesar el mismo producto múltiples veces
+                            if (!processedProducts.has(noteProduct.name)) {
+                                processedProducts.add(noteProduct.name);
+                                
+                                // Procesar los ingredientes de este producto
+                                noteProduct.productIngredients.forEach(productIngredient => {
+                                    // Verificar que sea el ingrediente correcto
+                                    if (Buffer.compare(Buffer.from(productIngredient.ingredient_id), ingredientId) === 0) {
+                                        // Calcular consumo: cantidad_combo * cantidad_en_combo * cantidad_ingrediente_por_producto
+                                        const consumption = comboSale.amount * noteProduct.comboDetailAmount * productIngredient.amount;
+                                        totalConsumed += consumption;
+                                    }
+                                });
+                            }
                         });
                     }
                 }
@@ -672,39 +700,53 @@ export const IngredientController = {
             const comboConsumptionProcessed = [];
             for (const comboSale of comboConsumption) {
                 if (comboSale.combo && comboSale.combo.combo_detail && comboSale.note) {
-                    // Procesar cada detalle del combo (cada tipo de producto en el combo)
+                    // NUEVO ENFOQUE: Usar la nota para identificar productos específicos y calcular directamente
+                    const noteProducts = [];
+                    const targetBranchId = branchBuffer ? bufferToUuid(Buffer.from(branchBuffer)) : null;
+                    
+                    // Obtener todos los productos mencionados en la nota de todos los combo_detail
                     comboSale.combo.combo_detail.forEach(comboDetail => {
-                        // De todos los productos de este tipo, solo considerar los que aparecen en la nota
-                        const relevantProducts = comboDetail.type_product.product.filter(product => {
-                            return comboSale.note && comboSale.note.toLowerCase().includes(product.name.toLowerCase());
-                        });
-                        
-                        // Procesar solo los productos relevantes (que aparecen en la nota)
-                        relevantProducts.forEach(product => {
-                            const productBranchId = product.branch_id ? 
-                                bufferToUuid(Buffer.from(product.branch_id)) : null;
-                            const targetBranchId = branchBuffer ? bufferToUuid(Buffer.from(branchBuffer)) : null;
-                            
-                            // Verificar que el producto sea de la misma sucursal (o sin filtro de sucursal)
-                            if (!branchBuffer || productBranchId === targetBranchId) {
-                                // Procesar cada ingrediente de este producto (ya filtrado por ingredient_id en la consulta)
-                                product.product_ingredient.forEach(productIngredient => {
-                                    // Calcular consumo: cantidad_combo * cantidad_tipo_producto_en_combo * cantidad_ingrediente_en_producto
-                                    const consumedAmount = comboSale.amount * comboDetail.amount * productIngredient.amount;
-                                    comboConsumptionProcessed.push({
-                                        date: comboSale.sale.created_at,
-                                        type: 'combo',
-                                        item_name: `${comboSale.combo.name} -> ${product.name} (filtrado por nota)`,
-                                        quantity_sold: comboSale.amount,
-                                        combo_detail_amount: comboDetail.amount,
-                                        ingredient_per_product: productIngredient.amount,
-                                        ingredient_consumed: consumedAmount,
-                                        user: comboSale.sale.user.name,
-                                        note: comboSale.note
+                        comboDetail.type_product.product.forEach(product => {
+                            if (comboSale.note && comboSale.note.toLowerCase().includes(product.name.toLowerCase())) {
+                                const productBranchId = product.branch_id ? 
+                                    bufferToUuid(Buffer.from(product.branch_id)) : null;
+                                
+                                // Verificar que el producto sea de la misma sucursal (o sin filtro de sucursal)
+                                if (!branchBuffer || productBranchId === targetBranchId) {
+                                    noteProducts.push({
+                                        name: product.name,
+                                        comboDetailAmount: comboDetail.amount,
+                                        productIngredients: product.product_ingredient
                                     });
-                                });
+                                }
                             }
                         });
+                    });
+                    
+                    // Procesar cada producto único encontrado en la nota
+                    const processedProducts = new Set();
+                    noteProducts.forEach(noteProduct => {
+                        // Evitar procesar el mismo producto múltiples veces
+                        if (!processedProducts.has(noteProduct.name)) {
+                            processedProducts.add(noteProduct.name);
+                            
+                            // Procesar los ingredientes de este producto (ya filtrado por ingredient_id en la consulta)
+                            noteProduct.productIngredients.forEach(productIngredient => {
+                                // Calcular consumo: cantidad_combo * cantidad_en_combo * cantidad_ingrediente_por_producto
+                                const consumedAmount = comboSale.amount * noteProduct.comboDetailAmount * productIngredient.amount;
+                                comboConsumptionProcessed.push({
+                                    date: comboSale.sale.created_at,
+                                    type: 'combo',
+                                    item_name: `${comboSale.combo.name} -> ${noteProduct.name} (único)`,
+                                    quantity_sold: comboSale.amount,
+                                    combo_detail_amount: noteProduct.comboDetailAmount,
+                                    ingredient_per_product: productIngredient.amount,
+                                    ingredient_consumed: consumedAmount,
+                                    user: comboSale.sale.user.name,
+                                    note: comboSale.note
+                                });
+                            });
+                        }
                     });
                 }
             }
