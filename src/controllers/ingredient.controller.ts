@@ -867,6 +867,124 @@ export const IngredientController = {
             return res.status(500).json({ message: "Error de servidor: " + error });
         }
     },
+    // Método para obtener solo ingredientes básicos (sin incluir virtuales como "Mezcla de harina")
+    async getAllBasicIngredients(req: any, res: any) {
+        try {
+            // Obtener todos los ingredientes básicos
+            const ingredients = await prisma.ingredient.findMany({
+                where: {
+                    // Excluir el ingrediente virtual "Mezcla de harina"
+                    name: {
+                        not: "Mezcla de harina"
+                    }
+                },
+                select: {
+                    id: true,
+                    created_at: true,
+                    updated_at: true,
+                    name: true,
+                    current_stock: true,
+                    min_stock: true,
+                    unit_measurement: true,
+                    cost_unit: true,
+                    branch_id: true,
+                },
+            });
+
+            const formattedIngredients = ingredients.map((ingredient) => {
+                return {
+                    ...ingredient,
+                    id: bufferToUuid(Buffer.from(ingredient.id)),
+                    branch_id: ingredient.branch_id ? bufferToUuid(Buffer.from(ingredient.branch_id)) : null,
+                };
+            });
+
+            res.status(200).json(formattedIngredients);
+        } catch (error) {
+            console.error('Error in getAllBasicIngredients:', error);
+            return res.status(500).json({ message: "Error de servidor: " + error });
+        }
+    },
+
+    // Método para obtener todos los ingredientes incluyendo virtuales
+    async getAllIngredientsWithVirtual(req: any, res: any) {
+        try {
+            // Definir la configuración del ingrediente virtual
+            const VIRTUAL_INGREDIENT_CONFIG = {
+                name: "Mezcla de harina",
+                recipe: [
+                    { name: "Leche", amount: 12.74 },
+                    { name: "Mantequilla", amount: 1.15 },
+                    { name: "Harina", amount: 19.11 }
+                ],
+                unit_measurement: "G"
+            };
+
+            // Obtener todos los ingredientes básicos
+            const ingredients = await prisma.ingredient.findMany({
+                select: {
+                    id: true,
+                    created_at: true,
+                    updated_at: true,
+                    name: true,
+                    current_stock: true,
+                    min_stock: true,
+                    unit_measurement: true,
+                    cost_unit: true,
+                    branch_id: true,
+                },
+            });
+
+            const formattedIngredients = ingredients.map((ingredient) => {
+                return {
+                    ...ingredient,
+                    id: bufferToUuid(Buffer.from(ingredient.id)),
+                    branch_id: ingredient.branch_id ? bufferToUuid(Buffer.from(ingredient.branch_id)) : null,
+                    is_virtual: false
+                };
+            });
+
+            // Agregar el ingrediente virtual si existen los ingredientes base
+            const recipeIngredients = VIRTUAL_INGREDIENT_CONFIG.recipe.map(recipeItem => 
+                formattedIngredients.find(ing => ing.name === recipeItem.name)
+            ).filter(Boolean);
+
+            if (recipeIngredients.length === VIRTUAL_INGREDIENT_CONFIG.recipe.length) {
+                // Calcular el stock disponible basado en la receta
+                const availableVirtualStock = Math.floor(Math.min(
+                    ...VIRTUAL_INGREDIENT_CONFIG.recipe.map((recipeItem, index) => {
+                        const ingredient = recipeIngredients[index];
+                        return ingredient ? ingredient.current_stock / recipeItem.amount : 0;
+                    })
+                ));
+
+                // Calcular el costo unitario promedio
+                const averageCost = recipeIngredients.reduce((sum, ing) => sum + ing.cost_unit, 0) / recipeIngredients.length;
+
+                const virtualIngredient = {
+                    id: "virtual-mezcla-harina", // ID especial para el ingrediente virtual
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                    name: VIRTUAL_INGREDIENT_CONFIG.name,
+                    current_stock: availableVirtualStock,
+                    min_stock: 1,
+                    unit_measurement: VIRTUAL_INGREDIENT_CONFIG.unit_measurement,
+                    cost_unit: averageCost,
+                    branch_id: recipeIngredients[0]?.branch_id || null,
+                    is_virtual: true,
+                    recipe_ingredients: VIRTUAL_INGREDIENT_CONFIG.recipe
+                };
+
+                formattedIngredients.push(virtualIngredient);
+            }
+
+            res.status(200).json(formattedIngredients);
+        } catch (error) {
+            console.error('Error in getAllIngredientsWithVirtual:', error);
+            return res.status(500).json({ message: "Error de servidor: " + error });
+        }
+    },
+
     async deleteIngredient(req: any, res: any) {
         const { id } = req.body;
         

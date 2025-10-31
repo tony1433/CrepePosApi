@@ -8,5 +8,6 @@ ProductIngredientRoute.post("/product/ingredient/create", verifyToken, ProductIn
 ProductIngredientRoute.get("/product/ingredient/all", verifyToken, ProductIngredientController.getAllProductIngredients);
 ProductIngredientRoute.get("/product/ingredient/:id", verifyToken, ProductIngredientController.getProductIngredients);
 ProductIngredientRoute.delete("/product/ingredient/delete", verifyToken, ProductIngredientController.deleteProductIngredient);
+ProductIngredientRoute.delete("/product/ingredient/delete-virtual", verifyToken, ProductIngredientController.deleteVirtualProductIngredient);
 
 export default ProductIngredientRoute;
