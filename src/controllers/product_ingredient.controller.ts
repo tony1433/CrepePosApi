@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { bufferToUuid, uuidToBuffer } from "../utils/common";
 
 // Constante para la cantidad predefinida de la mezcla de harina
-const VIRTUAL_INGREDIENT_DEFAULT_AMOUNT = 33;
+const VIRTUAL_INGREDIENT_DEFAULT_AMOUNT = 145;
 
 export const ProductIngredientController = {
     async createProductIngredient(req: any, res: any) {
@@ -33,9 +33,9 @@ export const ProductIngredientController = {
 
                 // Definir la receta del ingrediente virtual
                 const VIRTUAL_RECIPE = [
-                    { name: "Leche", amount: 12.74 },
-                    { name: "Mantequilla", amount: 1.15 },
-                    { name: "Harina", amount: 19.11 }
+                    { name: "Leche", amount: 94.77 },
+                    { name: "Mantequilla", amount: 2.84 },
+                    { name: "Harina", amount:  47.39 }
                 ];
 
                 // Obtener los ingredientes reales de la receta SOLO de la misma sucursal del producto

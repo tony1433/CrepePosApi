@@ -917,9 +917,9 @@ export const IngredientController = {
             const VIRTUAL_INGREDIENT_CONFIG = {
                 name: "Mezcla de harina",
                 recipe: [
-                    { name: "Leche", amount: 12.74 },
-                    { name: "Mantequilla", amount: 1.15 },
-                    { name: "Harina", amount: 19.11 }
+                    { name: "Leche", amount: 94.77 },
+                    { name: "Mantequilla", amount: 2.84 },
+                    { name: "Harina", amount:  47.39 }
                 ],
                 unit_measurement: "G"
             };
