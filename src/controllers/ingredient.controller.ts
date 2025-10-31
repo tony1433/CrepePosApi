@@ -2,6 +2,9 @@ import prisma from "../lib/prisma";
 import { v4 as uuidv4 } from "uuid";
 import { bufferToUuid, uuidToBuffer } from "../utils/common";
 
+// Constante para la cantidad predefinida de la mezcla de harina
+const VIRTUAL_INGREDIENT_DEFAULT_AMOUNT = 33;
+
 // Helper function para convertir fecha de México Central a UTC para comparación
 const mexicoToUTC = (mexicoDate: Date): Date => {
     // México Central es UTC-6 (CST) o UTC-5 (CDT durante horario de verano)
@@ -979,7 +982,7 @@ export const IngredientController = {
                         created_at: new Date(),
                         updated_at: new Date(),
                         name: VIRTUAL_INGREDIENT_CONFIG.name,
-                        current_stock: availableVirtualStock,
+                        current_stock: VIRTUAL_INGREDIENT_DEFAULT_AMOUNT, // Cantidad predefinida fija
                         min_stock: 1,
                         unit_measurement: VIRTUAL_INGREDIENT_CONFIG.unit_measurement,
                         cost_unit: averageCost,
@@ -991,7 +994,8 @@ export const IngredientController = {
                             name: ing.name,
                             current_stock: ing.current_stock,
                             unit_measurement: ing.unit_measurement
-                        }))
+                        })),
+                        actual_stock_calculation: availableVirtualStock // Guardamos el cálculo real para referencia
                     };
 
                     formattedIngredients.push(virtualIngredient);

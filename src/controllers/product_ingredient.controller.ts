@@ -2,6 +2,9 @@ import prisma from "../lib/prisma";
 import { v4 as uuidv4 } from "uuid";
 import { bufferToUuid, uuidToBuffer } from "../utils/common";
 
+// Constante para la cantidad predefinida de la mezcla de harina
+const VIRTUAL_INGREDIENT_DEFAULT_AMOUNT = 33;
+
 export const ProductIngredientController = {
     async createProductIngredient(req: any, res: any) {
         const {is_base, amount, product_id, ingredient_id } = req.body;
@@ -308,9 +311,7 @@ export const ProductIngredientController = {
                 );
 
                 if (hasAllRecipeIngredients) {
-                    // Calcular la cantidad total de la mezcla (usar la cantidad del primer ingrediente como base)
-                    const baseIngredient = virtualIngredients.find(vi => vi.ingredient.name === "Leche");
-                    const totalAmount = baseIngredient ? baseIngredient.amount : virtualIngredients[0].amount;
+                    // La mezcla de harina siempre se muestra con cantidad predefinida
 
                     // Generar ID virtual basado en la sucursal del producto
                     const branchId = product.branch_id ? bufferToUuid(Buffer.from(product.branch_id)) : 'no-branch';
@@ -321,7 +322,7 @@ export const ProductIngredientController = {
                         id: "virtual-group-mezcla-harina",
                         updated_at: virtualIngredients[0].updated_at,
                         is_base: virtualIngredients[0].is_base,
-                        amount: totalAmount,
+                        amount: VIRTUAL_INGREDIENT_DEFAULT_AMOUNT, // Siempre mostrar 33
                         product_id: bufferToUuid(Buffer.from(virtualIngredients[0].product_id)),
                         ingredient_id: virtualIngredientId,
                         ingredient: {
