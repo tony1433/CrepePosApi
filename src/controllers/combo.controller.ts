@@ -125,23 +125,23 @@ export const ComboController = {
                 return res.status(404).json({ message: "Combo no encontrado" });
             }
 
-            // Verificar si ya existe otro combo con el mismo nombre (excluyendo el actual)
-            if (name) {
-                const comboWithSameName = await prisma.combo.findFirst({
-                    where: {
-                        name: name,
-                        NOT: {
-                            id: uuidToBuffer(id),
-                        },
-                    },
-                });
+            // // Verificar si ya existe otro combo con el mismo nombre (excluyendo el actual)
+            // if (name) {
+            //     const comboWithSameName = await prisma.combo.findFirst({
+            //         where: {
+            //             name: name,
+            //             NOT: {
+            //                 id: uuidToBuffer(id),
+            //             },
+            //         },
+            //     });
 
-                if (comboWithSameName) {
-                    return res.status(409).json({ 
-                        message: "Ya existe otro combo con ese nombre" 
-                    });
-                }
-            }
+            //     if (comboWithSameName) {
+            //         return res.status(409).json({ 
+            //             message: "Ya existe otro combo con ese nombre" 
+            //         });
+            //     }
+            // }
 
             // Preparar los datos para actualizar
             const updateData: any = {
